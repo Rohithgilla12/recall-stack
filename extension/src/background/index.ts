@@ -39,3 +39,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })
   return true // REQUIRED: Indicates that the listener responds asynchronously.
 })
+
+chrome.runtime.onInstalled.addListener(function () {
+  chrome.contextMenus.create({
+    title: "Extension Context Menu",
+    contexts: ["all"],
+    id: "extension-context-menu"
+  })
+})
+
+chrome.contextMenus.onClicked.addListener(async function (info, tab) {
+  console.log({ info, tab })
+})

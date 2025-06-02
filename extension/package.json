@@ -32,7 +32,8 @@
     "permissions": [
       "cookies",
       "storage",
-      "activeTab"
+      "activeTab",
+      "contextMenus"
     ],
     "host_permissions": [
       "http://localhost/*",
