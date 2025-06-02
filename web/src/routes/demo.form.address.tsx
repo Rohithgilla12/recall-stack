@@ -126,9 +126,6 @@ function AddressForm() {
 									if (!value || value.trim().length === 0) {
 										return "Zip code is required"
 									}
-									if (!/^\d{5}(-\d{4})?$/.test(value)) {
-										return "Invalid zip code format"
-									}
 									return undefined
 								},
 							}}

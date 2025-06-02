@@ -15,7 +15,7 @@ function Products() {
 		<ul>
 			{(products || []).map((p) => (
 				<li key={p._id}>
-					{p.title} - {p.price}
+					{p.clerkUserId} - {p.name} - {p.email}
 				</li>
 			))}
 		</ul>
