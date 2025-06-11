@@ -6,15 +6,12 @@ export const getBookmarks = query({
 	args: {},
 	handler: async (ctx, _) => {
 		const identity = await ctx.auth.getUserIdentity()
-		console.log("identity", identity)
+
 		if (!identity) {
-			//todo: later throw error
-			return []
+			throw new Error("Unauthorized")
 		}
 
 		const userId = identity.subject
-
-		console.log("userId", userId)
 
 		const bookmarks = await ctx.db
 			.query("bookmarks")
@@ -44,6 +41,31 @@ export const createFolder = mutation({
 	handler: async (ctx, args) => {
 		return await ctx.db.insert("folders", {
 			...args,
+			createdAt: Date.now(),
+		})
+	},
+})
+
+export const createBookmark = mutation({
+	args: {
+		title: v.string(),
+		url: v.string(),
+		folderId: v.optional(v.id("folders")),
+		description: v.optional(v.string()),
+		imageUrl: v.optional(v.string()),
+		isArchived: v.optional(v.boolean()),
+		archivedUrl: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const identity = await ctx.auth.getUserIdentity()
+
+		if (!identity) {
+			throw new Error("Unauthorized")
+		}
+
+		return await ctx.db.insert("bookmarks", {
+			...args,
+			userId: identity.subject as Id<"users">,
 			createdAt: Date.now(),
 		})
 	},

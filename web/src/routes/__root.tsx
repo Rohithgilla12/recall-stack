@@ -8,9 +8,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools"
 
 import Header from "../components/Header"
 
-import ClerkProvider from "../integrations/clerk/provider.tsx"
-
-import ConvexProvider from "../integrations/convex/provider.tsx"
+import { ConvexAuthProvider } from "../integrations/convex/provider.tsx"
 
 import TanStackQueryLayout from "../integrations/tanstack-query/layout.tsx"
 
@@ -18,16 +16,34 @@ import appCss from "../styles.css?url"
 
 import type { QueryClient } from "@tanstack/react-query"
 
+import { DefaultCatchBoundary } from "@/components/rs/default-catch-boundary.tsx"
+import { NotFound } from "@/components/rs/not-found.tsx"
 import type { TRPCRouter } from "@/integrations/trpc/router"
+import { getAuth } from "@clerk/tanstack-react-start/server"
+import type { ConvexQueryClient } from "@convex-dev/react-query"
+import { createServerFn } from "@tanstack/react-start"
+import { getWebRequest } from "@tanstack/react-start/server"
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query"
+import type { ConvexReactClient } from "convex/react"
 
-interface MyRouterContext {
+interface RsRouterContext {
 	queryClient: QueryClient
-
+	convexClient: ConvexReactClient
+	convexQueryClient: ConvexQueryClient
 	trpc: TRPCOptionsProxy<TRPCRouter>
 }
 
-export const Route = createRootRouteWithContext<MyRouterContext>()({
+const fetchClerkAuth = createServerFn({ method: "GET" }).handler(async () => {
+	const auth = await getAuth(getWebRequest() as Request)
+	const token = await auth.getToken({ template: "convex" })
+
+	return {
+		userId: auth.userId,
+		token,
+	}
+})
+
+export const Route = createRootRouteWithContext<RsRouterContext>()({
 	head: () => ({
 		meta: [
 			{
@@ -49,18 +65,41 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 	}),
 
+	errorComponent: (props) => {
+		return (
+			<RootDocument>
+				<DefaultCatchBoundary {...props} />
+			</RootDocument>
+		)
+	},
+	beforeLoad: async (ctx) => {
+		const auth = await fetchClerkAuth()
+		const { userId, token } = auth
+
+		// During SSR only (the only time serverHttpClient exists),
+		// set the Clerk auth token to make HTTP queries with.
+		if (token) {
+			ctx.context.convexQueryClient.serverHttpClient?.setAuth(token)
+		}
+
+		return {
+			userId,
+			token,
+		}
+	},
+
+	notFoundComponent: () => <NotFound />,
+
 	component: () => (
 		<RootDocument>
-			<ClerkProvider>
-				<ConvexProvider>
-					<Header />
+			<ConvexAuthProvider>
+				<Header />
 
-					<Outlet />
-					<TanStackRouterDevtools />
+				<Outlet />
+				<TanStackRouterDevtools />
 
-					<TanStackQueryLayout />
-				</ConvexProvider>
-			</ClerkProvider>
+				<TanStackQueryLayout />
+			</ConvexAuthProvider>
 		</RootDocument>
 	),
 })
