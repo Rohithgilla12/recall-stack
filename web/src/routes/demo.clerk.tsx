@@ -16,5 +16,5 @@ function App() {
 		return <div className="p-4">Sign in to view this page</div>
 	}
 
-	return <div className="p-4">Hello {user.firstName}!</div>
+	return <div className="p-4">{JSON.stringify(user, null, 2)}</div>
 }

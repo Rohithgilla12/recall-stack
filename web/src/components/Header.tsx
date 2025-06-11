@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 
+import { Bookmark } from "lucide-react"
 import ClerkHeader from "../integrations/clerk/header-user.tsx"
 
 export default function Header() {
@@ -7,7 +8,14 @@ export default function Header() {
 		<header className="p-2 flex gap-2 bg-white text-black justify-between">
 			<nav className="flex flex-row">
 				<div className="px-2 font-bold">
-					<Link to="/">Home</Link>
+					<Link to="/">
+						<div className="flex items-center space-x-2">
+							<Bookmark className="h-8 w-8 text-blue-600" />
+							<h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+								Recall Stack
+							</h1>
+						</div>
+					</Link>
 				</div>
 
 				<div className="px-2 font-bold">
