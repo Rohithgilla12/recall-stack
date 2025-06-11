@@ -1,5 +1,4 @@
 import { v } from "convex/values"
-import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 
 export const getBookmarks = query({
@@ -13,9 +12,18 @@ export const getBookmarks = query({
 
 		const userId = identity.subject
 
+		const user = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", userId))
+			.unique()
+
+		if (!user) {
+			throw new Error("User not found")
+		}
+
 		const bookmarks = await ctx.db
 			.query("bookmarks")
-			.withIndex("by_userId", (q) => q.eq("userId", userId as Id<"users">))
+			.withIndex("by_userId", (q) => q.eq("userId", user._id))
 			.collect()
 
 		return bookmarks
@@ -63,9 +71,20 @@ export const createBookmark = mutation({
 			throw new Error("Unauthorized")
 		}
 
+		const user = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
+			.unique()
+
+		if (!user) {
+			throw new Error("User not found")
+		}
+
 		return await ctx.db.insert("bookmarks", {
 			...args,
-			userId: identity.subject as Id<"users">,
+			userId: user._id,
 			createdAt: Date.now(),
 		})
 	},
