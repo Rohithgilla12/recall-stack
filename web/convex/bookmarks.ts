@@ -1,5 +1,5 @@
 import { v } from "convex/values"
-import { mutation, query } from "./_generated/server"
+import { internalQuery, mutation, query } from "./_generated/server"
 
 export const getBookmarks = query({
 	args: {},
@@ -87,5 +87,24 @@ export const createBookmark = mutation({
 			userId: user._id,
 			createdAt: Date.now(),
 		})
+	},
+})
+
+export const bookmarkQuery = internalQuery({
+	args: {
+		bookmarkId: v.id("bookmarks"),
+	},
+	handler: async (ctx, args) => {
+		const { bookmarkId } = args
+		const bookmark = await ctx.db
+			.query("bookmarks")
+			.withIndex("by_id", (q) => q.eq("_id", bookmarkId))
+			.unique()
+
+		if (!bookmark) {
+			throw new Error("Bookmark not found")
+		}
+
+		return bookmark
 	},
 })

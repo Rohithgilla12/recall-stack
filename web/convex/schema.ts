@@ -21,13 +21,21 @@ export default defineSchema({
 		isArchived: v.optional(v.boolean()),
 		archivedUrl: v.optional(v.string()),
 		createdAt: v.number(),
-
 		summary: v.optional(v.string()),
-		aiSuggestedTags: v.optional(v.array(v.string())),
 		embeddingId: v.optional(v.id("vectorEmbeddings")),
 	})
 		.index("by_userId", ["userId", "createdAt"])
-		.index("by_url_and_userId", ["userId", "url"]),
+		.index("by_url_and_userId", ["userId", "url"])
+		.index("by_url", ["url"]),
+
+	bookmarkContent: defineTable({
+		bookmarkId: v.id("bookmarks"),
+		content: v.string(),
+		markdown: v.optional(v.string()),
+		cleanedContent: v.optional(v.string()),
+		aiSuggestedTags: v.optional(v.array(v.string())),
+		createdAt: v.number(),
+	}).index("by_bookmarkId", ["bookmarkId"]),
 
 	tags: defineTable({
 		userId: v.id("users"),
