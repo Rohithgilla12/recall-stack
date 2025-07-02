@@ -1,7 +1,12 @@
 import { workflow } from "convex"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
-import { internalQuery, mutation, query } from "./_generated/server"
+import {
+	internalMutation,
+	internalQuery,
+	mutation,
+	query,
+} from "./_generated/server"
 
 export const getBookmarks = query({
 	args: {},
@@ -90,9 +95,9 @@ export const createBookmark = mutation({
 			createdAt: Date.now(),
 		})
 
-		// await workflow.start(ctx, internal.features.ogdata.generateOgData., {
-		// 	url: args.url,
-		// })
+		await workflow.start(ctx, internal.bookmark_workflow.bookmarkContentFlow, {
+			bookmarkId: response,
+		})
 
 		return response
 	},
@@ -113,6 +118,64 @@ export const bookmarkQuery = internalQuery({
 			throw new Error("Bookmark not found")
 		}
 
-		return bookmark
+		const bookmarkContent = await ctx.db
+			.query("bookmarkContent")
+			.withIndex("by_url", (q) => q.eq("url", bookmark.url))
+			.unique()
+
+		return {
+			bookmark,
+			bookmarkContent,
+		}
+	},
+})
+
+export const updateBookmark = internalMutation({
+	args: {
+		bookmarkId: v.id("bookmarks"),
+		bookmarkContentId: v.id("bookmarkContent"),
+	},
+	handler: async (ctx, args) => {
+		const { bookmarkId, bookmarkContentId } = args
+
+		const bookmarkContent = await ctx.db.patch(bookmarkId, {
+			bookmarkContentId,
+		})
+
+		return bookmarkContent
+	},
+})
+
+export const createBookmarkContent = internalMutation({
+	args: {
+		content: v.string(),
+		url: v.string(),
+		markdown: v.optional(v.string()),
+		cleanedContent: v.optional(v.string()),
+		aiSuggestedTags: v.optional(v.array(v.string())),
+		ogData: v.optional(
+			v.object({
+				title: v.string(),
+				description: v.string(),
+				image: v.string(),
+				url: v.string(),
+			}),
+		),
+	},
+	handler: async (ctx, args) => {
+		const { content, url, markdown, cleanedContent, aiSuggestedTags, ogData } =
+			args
+
+		const bookmarkContent = await ctx.db.insert("bookmarkContent", {
+			content,
+			url,
+			markdown,
+			cleanedContent,
+			aiSuggestedTags,
+			ogData,
+			createdAt: Date.now(),
+		})
+
+		return bookmarkContent
 	},
 })
