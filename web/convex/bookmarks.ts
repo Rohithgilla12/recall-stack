@@ -1,4 +1,6 @@
+import { workflow } from "convex"
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import { internalQuery, mutation, query } from "./_generated/server"
 
 export const getBookmarks = query({
@@ -82,11 +84,17 @@ export const createBookmark = mutation({
 			throw new Error("User not found")
 		}
 
-		return await ctx.db.insert("bookmarks", {
+		const response = await ctx.db.insert("bookmarks", {
 			...args,
 			userId: user._id,
 			createdAt: Date.now(),
 		})
+
+		// await workflow.start(ctx, internal.features.ogdata.generateOgData., {
+		// 	url: args.url,
+		// })
+
+		return response
 	},
 })
 

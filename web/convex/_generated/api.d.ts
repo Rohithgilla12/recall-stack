@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as bookmark_workflow from "../bookmark_workflow.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as features_ogdata from "../features/ogdata.js";
 import type * as index from "../index.js";
@@ -29,6 +30,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  bookmark_workflow: typeof bookmark_workflow;
   bookmarks: typeof bookmarks;
   "features/ogdata": typeof features_ogdata;
   index: typeof index;

@@ -1,0 +1,21 @@
+{
+	"name": "browser-worker",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/puppeteer": "^1.0.2",
+		"@types/node": "^24.0.1",
+		"typescript": "^5.5.2",
+		"wrangler": "^4.20.0"
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.14.4",
+		"hono": "^4.7.11"
+	}
+}

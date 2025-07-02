@@ -23,19 +23,29 @@ export default defineSchema({
 		createdAt: v.number(),
 		summary: v.optional(v.string()),
 		embeddingId: v.optional(v.id("vectorEmbeddings")),
+		bookmarkContentId: v.optional(v.id("bookmarkContent")),
 	})
 		.index("by_userId", ["userId", "createdAt"])
 		.index("by_url_and_userId", ["userId", "url"])
+		.index("by_bookmarkContentId", ["bookmarkContentId"])
 		.index("by_url", ["url"]),
 
 	bookmarkContent: defineTable({
-		bookmarkId: v.id("bookmarks"),
 		content: v.string(),
+		url: v.string(),
 		markdown: v.optional(v.string()),
 		cleanedContent: v.optional(v.string()),
 		aiSuggestedTags: v.optional(v.array(v.string())),
+		ogData: v.optional(
+			v.object({
+				title: v.string(),
+				description: v.string(),
+				image: v.string(),
+				url: v.string(),
+			}),
+		),
 		createdAt: v.number(),
-	}).index("by_bookmarkId", ["bookmarkId"]),
+	}).index("by_url", ["url"]),
 
 	tags: defineTable({
 		userId: v.id("users"),

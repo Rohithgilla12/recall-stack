@@ -2,14 +2,17 @@ import { workflow } from "convex"
 import { internal } from "convex/_generated/api"
 import { v } from "convex/values"
 
-export const generateOgDataWorkflow = workflow.define({
+export const bookmarkContentFlow = workflow.define({
 	args: {
 		bookmarkId: v.id("bookmarks"),
 	},
-	handler: async (steps, args) => {
+	returns: v.object({
+		status: v.boolean(),
+	}),
+	handler: async (step, args) => {
 		const { bookmarkId } = args
 
-		const bookmark = await steps.runQuery(internal.bookmarks.bookmarkQuery, {
+		const bookmark = await step.runQuery(internal.bookmarks.bookmarkQuery, {
 			bookmarkId,
 		})
 
@@ -17,6 +20,6 @@ export const generateOgDataWorkflow = workflow.define({
 			throw new Error("Bookmark not found")
 		}
 
-		return bookmark
+		return { status: true }
 	},
 })
