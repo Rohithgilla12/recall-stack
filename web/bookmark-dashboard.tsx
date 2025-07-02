@@ -31,6 +31,7 @@ import {
   bookmarkStats,
   bookmarkStore,
 } from "@/lib/bookmark-store";
+import { useAuth } from "@clerk/clerk-react";
 import { useConvexMutation } from "@convex-dev/react-query";
 import { useMutation } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -50,6 +51,15 @@ import {
 } from "lucide-react";
 
 export default function BookmarkDashboard() {
+
+  const { userId } = useAuth()
+
+  if (!userId) {
+    // todo: create a sign in page later lil bro
+    return <div>Sign in to continue</div>
+  }
+
+  
   // Store subscriptions
   const searchQuery = useStore(bookmarkStore, (state) => state.searchQuery);
   const selectedTag = useStore(bookmarkStore, (state) => state.selectedTag);
@@ -391,6 +401,7 @@ export default function BookmarkDashboard() {
             </div>
           </div>
 
+
           {/* Bookmarks Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {bookmarks.map((bookmark) => (
@@ -400,7 +411,7 @@ export default function BookmarkDashboard() {
               >
                 <div className="relative overflow-hidden rounded-t-lg">
                   <img
-                    src={bookmark.imageUrl || "/placeholder.svg"}
+                    src={bookmark.bookmarkContent?.ogData?.image || "https://placehold.co/600x400"}
                     alt={bookmark.title}
                     className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
                   />
@@ -438,15 +449,15 @@ export default function BookmarkDashboard() {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {bookmark.aiSuggestedTags?.slice(0, 3).map((tag) => (
+                    {bookmark.bookmarkContent?.aiSuggestedTags?.slice(0, 3).map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
                         {tag}
                       </Badge>
                     ))}
-                    {bookmark.aiSuggestedTags?.length &&
-                      bookmark.aiSuggestedTags.length > 3 && (
+                    {bookmark.bookmarkContent?.aiSuggestedTags?.length &&
+                      bookmark.bookmarkContent?.aiSuggestedTags?.length > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{bookmark.aiSuggestedTags.length - 3}
+                          +{bookmark.bookmarkContent?.aiSuggestedTags?.length - 3}
                         </Badge>
                       )}
                   </div>

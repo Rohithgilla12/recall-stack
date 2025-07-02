@@ -33,7 +33,28 @@ export const getBookmarks = query({
 			.withIndex("by_userId", (q) => q.eq("userId", user._id))
 			.collect()
 
-		return bookmarks
+		const bookmarkContent = await Promise.all(
+			bookmarks.map(async (bookmark) => {
+				if (!bookmark.bookmarkContentId) {
+					return {
+						...bookmark,
+						bookmarkContent: null,
+					}
+				}
+				const bookmarkContent = await ctx.db
+					.query("bookmarkContent")
+					// biome-ignore lint/style/noNonNullAssertion: Already checked if bookmarkContentId is not null
+					.withIndex("by_id", (q) => q.eq("_id", bookmark.bookmarkContentId!))
+					.unique()
+
+				return {
+					...bookmark,
+					bookmarkContent,
+				}
+			}),
+		)
+
+		return bookmarkContent
 	},
 })
 
