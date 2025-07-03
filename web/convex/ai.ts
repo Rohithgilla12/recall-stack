@@ -38,10 +38,14 @@ export const generateSummaryAndTags = internalAction({
 
 		try {
 			// Check if content is substantial enough
-			if (!content || content.trim().length < 50) {
+			if (!content || content.trim().length < 200) {
 				// Arbitrary minimum length
 				console.log("Content too short for AI processing, skipping.")
-				return { summary: "Content too short to process.", tags: [] }
+				return {
+					summary: null,
+					tags: [],
+					error: "Content too short to process.",
+				}
 			}
 
 			const combinedSchema = z.object({
