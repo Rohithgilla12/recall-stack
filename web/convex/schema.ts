@@ -35,6 +35,7 @@ export default defineSchema({
 		url: v.string(),
 		markdown: v.optional(v.string()),
 		cleanedContent: v.optional(v.string()),
+		summary: v.optional(v.string()),
 		aiSuggestedTags: v.optional(v.array(v.string())),
 		ogData: v.optional(
 			v.object({
