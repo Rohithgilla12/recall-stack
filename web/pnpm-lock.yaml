@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/google':
+        specifier: ^0.0.29
+        version: 0.0.29(zod@3.25.56)
       '@ai-sdk/openai':
         specifier: ^0.0.41
         version: 0.0.41(zod@3.25.56)
@@ -192,11 +195,26 @@ importers:
 
 packages:
 
+  '@ai-sdk/google@0.0.29':
+    resolution: {integrity: sha512-qrXxqx1dZheSefstWxdhEDephj8WdcwlflE7HTVtgOGe+NAQ6JAP/czWL9Os8DzFbpw0EutmIe+bqWUF0cEXAg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+
   '@ai-sdk/openai@0.0.41':
     resolution: {integrity: sha512-BjJ99msoB1XilnAmjbECJcEwYedBMwgKkAbbtefyl1Ez1heGBuYE9KMcjh/t6SnUwnwJE1obNJCbeC9n9drpdQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
+
+  '@ai-sdk/provider-utils@1.0.4':
+    resolution: {integrity: sha512-2TldHn54+HrvVHMCos9lrSMcDIp3cgnpphpYT/95RXcIzcGwAFM5MioDWnsrki3noplU5pVld6ylD3Vu/Xt3Vw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@ai-sdk/provider-utils@1.0.6':
     resolution: {integrity: sha512-+wq/311mCRM+mtALiSR9e1E9gjAvQd8hLpONvUDFmmPG+NtaTpjyZIrMQ6fqZX3xm6DpUaf1d+VPooIVDoZKtg==}
@@ -212,6 +230,10 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.23.8
+
+  '@ai-sdk/provider@0.0.13':
+    resolution: {integrity: sha512-RBstpG/3RqVBBJgTvjZpou/+1fNQMDIwB9enqQPXqr0MoCrJHscLD2Zsfr6cKM5HFfY1D4KhdSPTycCDebVGlQ==}
+    engines: {node: '>=18'}
 
   '@ai-sdk/provider@0.0.14':
     resolution: {integrity: sha512-gaQ5Y033nro9iX1YUjEDFDRhmMcEiCk56LJdIUbX5ozEiCNCfpiBpEqrjSp/Gp5RzBS2W0BVxfG7UGW6Ezcrzg==}
@@ -5214,10 +5236,25 @@ packages:
 
 snapshots:
 
+  '@ai-sdk/google@0.0.29(zod@3.25.56)':
+    dependencies:
+      '@ai-sdk/provider': 0.0.13
+      '@ai-sdk/provider-utils': 1.0.4(zod@3.25.56)
+      zod: 3.25.56
+
   '@ai-sdk/openai@0.0.41(zod@3.25.56)':
     dependencies:
       '@ai-sdk/provider': 0.0.14
       '@ai-sdk/provider-utils': 1.0.6(zod@3.25.56)
+      zod: 3.25.56
+
+  '@ai-sdk/provider-utils@1.0.4(zod@3.25.56)':
+    dependencies:
+      '@ai-sdk/provider': 0.0.13
+      eventsource-parser: 1.1.2
+      nanoid: 3.3.6
+      secure-json-parse: 2.7.0
+    optionalDependencies:
       zod: 3.25.56
 
   '@ai-sdk/provider-utils@1.0.6(zod@3.25.56)':
@@ -5235,6 +5272,10 @@ snapshots:
       nanoid: 3.3.11
       secure-json-parse: 2.7.0
       zod: 3.25.56
+
+  '@ai-sdk/provider@0.0.13':
+    dependencies:
+      json-schema: 0.4.0
 
   '@ai-sdk/provider@0.0.14':
     dependencies:

@@ -1,31 +1,27 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { Agent } from "@convex-dev/agent";
-import { openai } from "@ai-sdk/openai";
-import { api, internal } from "./_generated/api";
+import { google } from "@ai-sdk/google"; // Changed from openai to google
+import { api } from "./_generated/api"; // Removed 'internal' as it's not used
 import { z } from "zod";
 
 // Initialize a basic agent for summarization and tagging.
 // This agent won't have specific instructions or tools beyond generation.
-// Ensure OPENAI_API_KEY is set in your Convex project environment variables.
-// If using Gemini, ensure the relevant Google API key (e.g., GOOGLE_GENERATIVE_AI_API_KEY) is set
-// and change the model provider below.
-const contentAgent = new Agent(api.agent.client, { // Changed from internal.agent.client to api.agent.client
-  chat: openai.chat("gpt-4o-mini"), // Placeholder: User requested Gemini Flash. Update if Gemini provider is configured.
+// Ensure GOOGLE_GENERATIVE_AI_API_KEY (or the specific key for your provider) is set in your Convex project environment variables.
+const contentAgent = new Agent(api.agent.client, {
+  chat: google.chat("models/gemini-1.5-flash-latest"), // Changed to Gemini Flash
   // textEmbedding is not strictly needed for summarize/generateObject if not using RAG features here.
 });
 
 export const generateSummaryAndTags = internalAction({
   args: {
     content: v.string(),
-    // bookmarkContentId: v.id("bookmarkContent"), // No longer needed here, action returns data
   },
-  handler: async (ctx, { content }) => { // Removed bookmarkContentId from args
-    // Check for OpenAI API key if using OpenAI.
-    // If switching to Gemini, check for its specific API key env variable.
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY is not set. Skipping AI generation. Please set this or the relevant API key for your chosen AI provider.");
-      return { summary: null, tags: null, error: "Required AI API Key (e.g., OPENAI_API_KEY) is not set." };
+  handler: async (ctx, { content }) => {
+    // Check for Google API key. User should verify the exact environment variable name.
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      console.error("GOOGLE_GENERATIVE_AI_API_KEY is not set. Skipping AI generation. Please set this for Gemini models.");
+      return { summary: null, tags: null, error: "Required Google API Key (e.g., GOOGLE_GENERATIVE_AI_API_KEY) is not set." };
     }
 
     let summary: string | null = null;

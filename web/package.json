@@ -20,6 +20,7 @@
 		"@convex-dev/react-query": "0.0.0-alpha.8",
 		"@convex-dev/agent": "^0.1.13",
 		"@ai-sdk/openai": "^0.0.41",
+		"@ai-sdk/google": "^0.0.29",
 		"@convex-dev/workflow": "^0.2.4",
 		"@faker-js/faker": "^9.6.0",
 		"@radix-ui/react-avatar": "^1.1.10",
