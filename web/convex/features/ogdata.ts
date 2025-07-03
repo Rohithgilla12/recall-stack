@@ -7,12 +7,12 @@ const ogDataSchema = v.object({
 	length: v.number(),
 	markdown: v.string(),
 	open_graph: v.object({
-		description: v.string(),
-		image: v.string(),
+		description: v.optional(v.string()),
+		image: v.optional(v.string()),
 		locale: v.string(),
-		title: v.string(),
-		twitter_card: v.string(),
-		twitter_image: v.string(),
+		title: v.optional(v.string()),
+		twitter_card: v.optional(v.string()),
+		twitter_image: v.optional(v.string()),
 		url: v.string(),
 	}),
 	success: v.boolean(),
@@ -40,6 +40,28 @@ export const generateOgData = internalAction({
 
 		const data = await response.json()
 
-		return data as typeof ogDataSchema.type
+		if (!data.success) {
+			throw new Error("Failed to generate OG data")
+		}
+
+		// Doing this so that convex doesn't throw ` Object contains extra field `site_name` that is not in the validator`
+		return {
+			content: data.content,
+			excerpt: data.excerpt,
+			length: data.length,
+			markdown: data.markdown,
+			open_graph: {
+				description: data.open_graph.description,
+				image: data.open_graph.image,
+				locale: data.open_graph.locale,
+				title: data.open_graph.title,
+				twitter_card: data.open_graph.twitter_card,
+				twitter_image: data.open_graph.twitter_image,
+				url: data.open_graph.url,
+			},
+			success: data.success,
+			title: data.title,
+			url: data.url,
+		}
 	},
 })

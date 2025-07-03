@@ -50,6 +50,31 @@ export const bookmarkContentFlow = workflow.define({
 			},
 		)
 
+		console.log("response", response.markdown)
+
+		// Call the new AI action
+		const aiData = await step.runAction(internal.ai.generateSummaryAndTags, {
+			content: response.markdown,
+			userId: bookmark.userId,
+		})
+
+		let summaryToStore = undefined
+		let tagsToStore: string[] = []
+
+		if (aiData) {
+			if (aiData.error) {
+				console.warn(
+					`AI processing failed for ${bookmark.url}: ${aiData.error}`,
+				)
+			} else {
+				summaryToStore = aiData.summary ?? undefined
+				tagsToStore = aiData.tags || []
+			}
+		} else {
+			console.warn(`AI processing returned no data for ${bookmark.url}`)
+			summaryToStore = "AI processing did not return data."
+		}
+
 		const createdBookmarkContent = await step.runMutation(
 			internal.bookmarks.createBookmarkContent,
 			{
@@ -57,8 +82,8 @@ export const bookmarkContentFlow = workflow.define({
 				url: bookmark.url,
 				markdown: response.markdown,
 				cleanedContent: response.content,
-				// TODO: add ai suggested tags
-				aiSuggestedTags: [],
+				summary: summaryToStore,
+				aiSuggestedTags: tagsToStore, // Add tags from AI action
 				ogData: {
 					title: response.title,
 					description: response.open_graph.description,

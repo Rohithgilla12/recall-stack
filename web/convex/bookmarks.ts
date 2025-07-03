@@ -41,19 +41,21 @@ export const getBookmarks = query({
 						bookmarkContent: null,
 					}
 				}
-				const bookmarkContent = await ctx.db
+				const contentDoc = await ctx.db // Renamed to avoid confusion
 					.query("bookmarkContent")
 					// biome-ignore lint/style/noNonNullAssertion: Already checked if bookmarkContentId is not null
 					.withIndex("by_id", (q) => q.eq("_id", bookmark.bookmarkContentId!))
 					.unique()
 
 				return {
-					...bookmark,
-					bookmarkContent,
+					...bookmark, // Includes original bookmark fields (like its own summary if any)
+					bookmarkContent: contentDoc,
+					// Prioritize AI-generated summary from bookmarkContent if it exists
+					summary: contentDoc?.summary || bookmark.summary,
 				}
 			}),
 		)
-
+		// The variable name bookmarkContent is a bit misleading here, it's bookmarksWithContent
 		return bookmarkContent
 	},
 })
@@ -173,18 +175,27 @@ export const createBookmarkContent = internalMutation({
 		url: v.string(),
 		markdown: v.optional(v.string()),
 		cleanedContent: v.optional(v.string()),
+		summary: v.optional(v.string()),
 		aiSuggestedTags: v.optional(v.array(v.string())),
 		ogData: v.optional(
 			v.object({
-				title: v.string(),
-				description: v.string(),
-				image: v.string(),
-				url: v.string(),
+				title: v.optional(v.string()),
+				description: v.optional(v.string()),
+				image: v.optional(v.string()),
+				url: v.optional(v.string()),
 			}),
 		),
 	},
 	handler: async (ctx, args) => {
-		const { content, url, markdown, cleanedContent, aiSuggestedTags, ogData } =
+		const {
+			content,
+			url,
+			markdown,
+			cleanedContent,
+			summary,
+			aiSuggestedTags,
+			ogData,
+		} = // Added summary to destructuring
 			args
 
 		const bookmarkContent = await ctx.db.insert("bookmarkContent", {
@@ -192,6 +203,7 @@ export const createBookmarkContent = internalMutation({
 			url,
 			markdown,
 			cleanedContent,
+			summary,
 			aiSuggestedTags,
 			ogData,
 			createdAt: Date.now(),
