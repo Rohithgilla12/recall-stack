@@ -187,15 +187,7 @@ export const createBookmarkContent = internalMutation({
 		),
 	},
 	handler: async (ctx, args) => {
-		const {
-			content,
-			url,
-			markdown,
-			cleanedContent,
-			summary,
-			aiSuggestedTags,
-			ogData,
-		} = // Added summary to destructuring
+		const { content, url, markdown, cleanedContent, summary, aiSuggestedTags, ogData } = // Added summary to destructuring
 			args
 
 		const bookmarkContent = await ctx.db.insert("bookmarkContent", {
