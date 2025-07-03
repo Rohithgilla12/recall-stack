@@ -39,10 +39,10 @@ export default defineSchema({
 		aiSuggestedTags: v.optional(v.array(v.string())),
 		ogData: v.optional(
 			v.object({
-				title: v.string(),
-				description: v.string(),
-				image: v.string(),
-				url: v.string(),
+				title: v.optional(v.string()),
+				description: v.optional(v.string()),
+				image: v.optional(v.string()),
+				url: v.optional(v.string()),
 			}),
 		),
 		createdAt: v.number(),

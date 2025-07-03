@@ -16,8 +16,9 @@ const contentAgent = new Agent(components.agent, {
 export const generateSummaryAndTags = internalAction({
 	args: {
 		content: v.string(),
+		userId: v.string(),
 	},
-	handler: async (ctx, { content }) => {
+	handler: async (ctx, { content, userId }) => {
 		// Check for Google API key. User should verify the exact environment variable name.
 		if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
 			console.error(
@@ -71,7 +72,7 @@ If the content is too short, nonsensical, or primarily code/data:
 			try {
 				const result = await contentAgent.generateObject(
 					ctx,
-					{},
+					{ userId },
 					{
 						prompt: prompt,
 						schema: combinedSchema,
