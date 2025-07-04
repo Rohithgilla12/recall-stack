@@ -24,8 +24,10 @@ export default defineSchema({
 		summary: v.optional(v.string()),
 		embeddingId: v.optional(v.id("vectorEmbeddings")),
 		bookmarkContentId: v.optional(v.id("bookmarkContent")),
+		folderId: v.optional(v.id("folders")), // Added folderId
 	})
 		.index("by_userId", ["userId", "createdAt"])
+		.index("by_userId_and_folderId", ["userId", "folderId"]) // Added index for folderId
 		.index("by_url_and_userId", ["userId", "url"])
 		.index("by_bookmarkContentId", ["bookmarkContentId"])
 		.index("by_url", ["url"]),

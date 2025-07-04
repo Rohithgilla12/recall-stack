@@ -28,15 +28,17 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
   bookmarkActions,
-  bookmarkStats,
+  // bookmarkStats, // To be replaced or removed
   bookmarkStore,
 } from "@/lib/bookmark-store";
 import { useAuth } from "@clerk/clerk-react";
-import { useConvexMutation } from "@convex-dev/react-query";
-import { useMutation } from "@tanstack/react-query";
+// import { useConvexMutation } from "@convex-dev/react-query"; // Direct use of useMutation from convex/react
+// import { useMutation } from "@tanstack/react-query"; // Direct use of useMutation from convex/react
 import { useStore } from "@tanstack/react-store";
 import { api } from "convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react"; // Consolidated imports
+import { Id } from "convex/_generated/dataModel";
+
 import {
   Archive,
   Bookmark,
@@ -45,51 +47,117 @@ import {
   Folder,
   FolderPlus,
   Globe,
+  Home, // For Root folder
   Plus,
   Search,
   Tag,
 } from "lucide-react";
 
 export default function BookmarkDashboard() {
+  const { userId: clerkUserId, isSignedIn } = useAuth(); // clerkUserId for clarity if needed for specific queries
 
-  const { userId } = useAuth()
+import React from "react"; // Import React
+// ... other imports
+import {
+  Pencil, // For Edit Tags button
+  XCircle, // For removing a tag in dialog
+} from "lucide-react";
 
-  if (!userId) {
-    // todo: create a sign in page later lil bro
-    return <div>Sign in to continue</div>
+
+// Define types for bookmark and tag for clarity
+type TagType = { _id: Id<"tags">; name: string };
+type BookmarkType = {
+  _id: Id<"bookmarks">;
+  title: string;
+  url: string;
+  description?: string;
+  isArchived?: boolean;
+  createdAt: number;
+  folderId?: Id<"folders">;
+  tags: TagType[]; // User-managed tags
+  bookmarkContent?: {
+    ogData?: { image?: string };
+    aiSuggestedTags?: string[];
+  } | null;
+  summary?: string;
+};
+
+
+export default function BookmarkDashboard() {
+  const { userId: clerkUserId, isSignedIn } = useAuth();
+
+  // Store subscriptions for UI state
+  const searchQuery = useStore(bookmarkStore, (state) => state.searchQuery);
+  const selectedTagIdStore = useStore(bookmarkStore, (state) => state.selectedTag);
+  const selectedFolderIdStore = useStore(bookmarkStore, (state) => state.selectedFolder);
+  const isAddDialogOpen = useStore(bookmarkStore, (state) => state.isAddDialogOpen);
+  const isFolderDialogOpen = useStore(bookmarkStore, (state) => state.isFolderDialogOpen);
+  const newBookmarkForm = useStore(bookmarkStore, (state) => state.newBookmarkForm);
+  const newFolderForm = useStore(bookmarkStore, (state) => state.newFolderForm);
+
+  // State for managing the "Edit Tags" dialog
+  const [editTagsDialog, setEditTagsDialog] = React.useState<{
+    isOpen: boolean;
+    bookmark: BookmarkType | null;
+    newTagName: string;
+  }>({ isOpen: false, bookmark: null, newTagName: "" });
+
+
+  // Convex queries
+  const bookmarks: BookmarkType[] = useQuery(
+    api.bookmarks.getBookmarks,
+    isSignedIn ? { folderId: selectedFolderIdStore ?? "root", tagId: selectedTagIdStore ?? undefined } : { skip: true }
+  ) || [];
+  const userFolders = useQuery(api.bookmarks.getUserFolders, isSignedIn ? {} : { skip: true }) || [];
+  const userTags = useQuery(api.tags.getAllUserTags, isSignedIn ? {} : { skip: true }) || [];
+
+  // Convex mutations
+  const createBookmarkMutation = useMutation(api.bookmarks.createBookmark);
+  const createFolderMutation = useMutation(api.bookmarks.createFolder);
+  const addTagToBookmarkMutation = useMutation(api.tags.addTagToBookmark);
+  const removeTagFromBookmarkMutation = useMutation(api.tags.removeTagFromBookmark);
+
+  if (!isSignedIn) {
+    return <div>Sign in to continue</div>;
   }
 
-  
-  // Store subscriptions
-  const searchQuery = useStore(bookmarkStore, (state) => state.searchQuery);
-  const selectedTag = useStore(bookmarkStore, (state) => state.selectedTag);
-  const selectedFolder = useStore(
-    bookmarkStore,
-    (state) => state.selectedFolder
-  );
-  const isAddDialogOpen = useStore(
-    bookmarkStore,
-    (state) => state.isAddDialogOpen
-  );
-  const isFolderDialogOpen = useStore(
-    bookmarkStore,
-    (state) => state.isFolderDialogOpen
-  );
-  const newBookmark = useStore(bookmarkStore, (state) => state.newBookmark);
-  const newFolder = useStore(bookmarkStore, (state) => state.newFolder);
-  const tags = useStore(bookmarkStore, (state) => state.tags);
-  const folders = useStore(bookmarkStore, (state) => state.folders);
 
-  const { mutate: createBookmarkMutation, isPending } = useMutation({
-    mutationFn: useConvexMutation(api.bookmarks.createBookmark),
-    onError: (error) => {
-      console.error(error);
-    },
-  });
+  const handleCreateBookmark = async () => {
+    if (!newBookmarkForm.url || !newBookmarkForm.title) {
+      // Basic validation
+      console.error("URL and Title are required.");
+      return;
+    }
+    try {
+      await createBookmarkMutation({
+        title: newBookmarkForm.title,
+        url: newBookmarkForm.url,
+        description: newBookmarkForm.description,
+        folderId: newBookmarkForm.folderId as Id<"folders"> | undefined, // Ensure type compatibility
+        tags: newBookmarkForm.tags, // Will be implemented more thoroughly later
+      });
+      bookmarkActions.submitAddBookmarkForm(); // Closes dialog and resets form
+    } catch (error) {
+      console.error("Failed to create bookmark:", error);
+    }
+  };
 
-  // Derived state
-  const bookmarks = useQuery(api.bookmarks.getBookmarks) || [];
-  const stats = useStore(bookmarkStats);
+  const handleCreateFolder = async () => {
+    if (!newFolderForm.name) {
+      console.error("Folder name is required.");
+      return;
+    }
+    try {
+      await createFolderMutation({
+        name: newFolderForm.name,
+        parentId: newFolderForm.parentId as Id<"folders"> | undefined,
+      });
+      bookmarkActions.submitCreateFolderForm();
+    } catch (error) {
+      console.error("Failed to create folder:", error);
+    }
+  };
+
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString("en-US", {
@@ -98,6 +166,13 @@ export default function BookmarkDashboard() {
       year: "numeric",
     });
   };
+
+  // Calculate stats locally for now
+  const totalBookmarks = bookmarks.length;
+  const activeBookmarks = bookmarks.filter(b => !b.isArchived).length;
+  const archivedBookmarks = bookmarks.filter(b => b.isArchived).length;
+  const totalTagsCount = userTags.length;
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -141,9 +216,9 @@ export default function BookmarkDashboard() {
                       <Input
                         id="url"
                         placeholder="https://example.com"
-                        value={newBookmark.url}
+                        value={newBookmarkForm.url}
                         onChange={(e) =>
-                          bookmarkActions.updateNewBookmark({
+                          bookmarkActions.updateNewBookmarkForm({
                             url: e.target.value,
                           })
                         }
@@ -154,9 +229,9 @@ export default function BookmarkDashboard() {
                       <Input
                         id="title"
                         placeholder="Bookmark title"
-                        value={newBookmark.title}
+                        value={newBookmarkForm.title}
                         onChange={(e) =>
-                          bookmarkActions.updateNewBookmark({
+                          bookmarkActions.updateNewBookmarkForm({
                             title: e.target.value,
                           })
                         }
@@ -167,9 +242,9 @@ export default function BookmarkDashboard() {
                       <Textarea
                         id="description"
                         placeholder="Brief description..."
-                        value={newBookmark.description}
+                        value={newBookmarkForm.description}
                         onChange={(e) =>
-                          bookmarkActions.updateNewBookmark({
+                          bookmarkActions.updateNewBookmarkForm({
                             description: e.target.value,
                           })
                         }
@@ -178,39 +253,40 @@ export default function BookmarkDashboard() {
                     <div>
                       <Label htmlFor="folder">Folder</Label>
                       <Select
-                        value={newBookmark.folder}
+                        value={newBookmarkForm.folderId || "root"}
                         onValueChange={(value) =>
-                          bookmarkActions.updateNewBookmark({ folder: value })
+                          bookmarkActions.updateNewBookmarkForm({ folderId: value === "root" ? null : value })
                         }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select folder" />
                         </SelectTrigger>
                         <SelectContent>
-                          {folders.map((folder) => (
-                            <SelectItem key={folder} value={folder}>
-                              {folder}
+                          <SelectItem value="root">Root</SelectItem>
+                          {userFolders.map((folder) => (
+                            <SelectItem key={folder._id} value={folder._id}>
+                              {folder.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* Basic Tag input for now, will be enhanced later */}
+                    <div>
+                        <Label htmlFor="tags">Tags (comma-separated)</Label>
+                        <Input
+                            id="tags"
+                            placeholder="e.g., react, typescript, cool"
+                            value={newBookmarkForm.tags.join(", ")}
+                            onChange={(e) => bookmarkActions.updateNewBookmarkForm({ tags: e.target.value.split(",").map(tag => tag.trim()) })}
+                        />
+                    </div>
                     <Button
-                      disabled={isPending}
-                      onClick={() => {
-                        try {
-                          createBookmarkMutation({
-                            title: newBookmark.title,
-                            url: newBookmark.url,
-                            description: newBookmark.description,
-                          });
-                        } catch (error) {
-                          console.error(error);
-                        }
-                      }}
+                      disabled={createBookmarkMutation.isPending}
+                      onClick={handleCreateBookmark}
                       className="w-full"
                     >
-                      Save Bookmark
+                      {createBookmarkMutation.isPending ? "Saving..." : "Save Bookmark"}
                     </Button>
                   </div>
                 </DialogContent>
@@ -220,23 +296,23 @@ export default function BookmarkDashboard() {
             {/* Filter Tags */}
             <div className="flex flex-wrap gap-2">
               <Button
-                variant={selectedTag === "all" ? "default" : "outline"}
+                variant={selectedTagIdStore === null ? "default" : "outline"}
                 size="sm"
-                onClick={() => bookmarkActions.setSelectedTag("all")}
+                onClick={() => bookmarkActions.setSelectedTag(null)}
                 className="rounded-full"
               >
-                All
+                All Tags
               </Button>
-              {tags.map((tag) => (
+              {userTags.map((tag) => (
                 <Button
-                  key={tag}
-                  variant={selectedTag === tag ? "default" : "outline"}
+                  key={tag._id}
+                  variant={selectedTagIdStore === tag._id ? "default" : "outline"}
                   size="sm"
-                  onClick={() => bookmarkActions.setSelectedTag(tag)}
+                  onClick={() => bookmarkActions.setSelectedTag(tag._id)}
                   className="rounded-full"
                 >
                   <Tag className="h-3 w-3 mr-1" />
-                  {tag}
+                  {tag.name}
                 </Button>
               ))}
             </div>
@@ -252,7 +328,7 @@ export default function BookmarkDashboard() {
                       Total Bookmarks
                     </p>
                     <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                      {stats.total}
+                      {totalBookmarks}
                     </p>
                   </div>
                   <Bookmark className="h-8 w-8 text-blue-600" />
@@ -268,7 +344,7 @@ export default function BookmarkDashboard() {
                       Active
                     </p>
                     <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                      {stats.active}
+                      {activeBookmarks}
                     </p>
                   </div>
                   <Globe className="h-8 w-8 text-green-600" />
@@ -284,7 +360,7 @@ export default function BookmarkDashboard() {
                       Archived
                     </p>
                     <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                      {stats.archived}
+                      {archivedBookmarks}
                     </p>
                   </div>
                   <Archive className="h-8 w-8 text-orange-600" />
@@ -297,10 +373,10 @@ export default function BookmarkDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                      Tags
+                      Total Tags
                     </p>
                     <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                      {stats.totalTags}
+                      {totalTagsCount}
                     </p>
                   </div>
                   <Tag className="h-8 w-8 text-purple-600" />
@@ -336,9 +412,9 @@ export default function BookmarkDashboard() {
                       <Input
                         id="folderName"
                         placeholder="Enter folder name"
-                        value={newFolder.name}
+                        value={newFolderForm.name}
                         onChange={(e) =>
-                          bookmarkActions.updateNewFolder({
+                          bookmarkActions.updateNewFolderForm({
                             name: e.target.value,
                           })
                         }
@@ -349,10 +425,10 @@ export default function BookmarkDashboard() {
                         Parent Folder (Optional)
                       </Label>
                       <Select
-                        value={newFolder.parentId || ""}
+                        value={newFolderForm.parentId || "root"}
                         onValueChange={(value) =>
-                          bookmarkActions.updateNewFolder({
-                            parentId: value || null,
+                          bookmarkActions.updateNewFolderForm({
+                            parentId: value === "root" ? null : value,
                           })
                         }
                       >
@@ -363,19 +439,20 @@ export default function BookmarkDashboard() {
                           <SelectItem value="root">
                             No parent (root level)
                           </SelectItem>
-                          {folders.map((folder) => (
-                            <SelectItem key={folder} value={folder}>
-                              {folder}
+                          {userFolders.map((folder) => (
+                            <SelectItem key={folder._id} value={folder._id}>
+                              {folder.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <Button
-                      onClick={bookmarkActions.createFolder}
+                      disabled={createFolderMutation.isPending}
+                      onClick={handleCreateFolder}
                       className="w-full"
                     >
-                      Create Folder
+                      {createFolderMutation.isPending ? "Creating..." : "Create Folder"}
                     </Button>
                   </div>
                 </DialogContent>
@@ -383,18 +460,31 @@ export default function BookmarkDashboard() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {folders.map((folder) => (
+              {/* Root Folder Card */}
+              <Card
+                className={`group hover:shadow-md transition-all duration-200 cursor-pointer border-2 ${selectedFolderIdStore === null ? "border-indigo-600" : "border-slate-200 dark:border-slate-600"} bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700`}
+                onClick={() => bookmarkActions.setSelectedFolder(null) }
+              >
+                <CardContent className="p-4 text-center">
+                  <Home className="h-8 w-8 mx-auto mb-2 text-indigo-600 group-hover:text-indigo-700" />
+                  <p className="text-sm font-medium truncate">Root</p>
+                  {/* Optionally, count bookmarks in root */}
+                </CardContent>
+              </Card>
+
+              {userFolders.map((folder) => (
                 <Card
-                  key={folder}
-                  className="group hover:shadow-md transition-all duration-200 cursor-pointer bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 border-slate-200 dark:border-slate-600"
-                  onClick={() => bookmarkActions.setSelectedFolder(folder)}
+                  key={folder._id}
+                  className={`group hover:shadow-md transition-all duration-200 cursor-pointer border-2 ${selectedFolderIdStore === folder._id ? "border-indigo-600" : "border-slate-200 dark:border-slate-600"} bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700`}
+                  onClick={() => bookmarkActions.setSelectedFolder(folder._id)}
                 >
                   <CardContent className="p-4 text-center">
                     <Folder className="h-8 w-8 mx-auto mb-2 text-indigo-600 group-hover:text-indigo-700" />
-                    <p className="text-sm font-medium truncate">{folder}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.floor(Math.random() * 10) + 1} items
-                    </p>
+                    <p className="text-sm font-medium truncate">{folder.name}</p>
+                    {/* Count items in folder - requires more complex data fetching or client-side calculation */}
+                    {/* <p className="text-xs text-muted-foreground">
+                      {bookmarks.filter(b => b.folderId === folder._id).length} items
+                    </p> */}
                   </CardContent>
                 </Card>
               ))}
@@ -424,18 +514,31 @@ export default function BookmarkDashboard() {
                 </div>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg line-clamp-2 group-hover:text-blue-600 transition-colors">
-                      {bookmark.title}
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="flex-grow">
+                      <CardTitle className="text-lg line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        {bookmark.title}
+                      </CardTitle>
+                    </a>
+                    <div className="flex-shrink-0 space-x-1">
+                       <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-50 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setEditTagsDialog({ isOpen: true, bookmark: bookmark, newTagName: "" })}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-50 group-hover:opacity-100 transition-opacity"
+                        onClick={() => window.open(bookmark.url, "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <CardDescription className="line-clamp-2">
+                  <CardDescription className="line-clamp-2 pt-1">
                     {bookmark.description}
                   </CardDescription>
                 </CardHeader>
@@ -448,19 +551,38 @@ export default function BookmarkDashboard() {
                       </p>
                     </div>
                   )}
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {bookmark.bookmarkContent?.aiSuggestedTags?.slice(0, 3).map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {bookmark.bookmarkContent?.aiSuggestedTags?.length &&
-                      bookmark.bookmarkContent?.aiSuggestedTags?.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{bookmark.bookmarkContent?.aiSuggestedTags?.length - 3}
-                        </Badge>
-                      )}
-                  </div>
+                  {/* User-managed Tags */}
+                  {bookmark.tags && bookmark.tags.length > 0 && (
+                    <div className="mb-2">
+                      <h4 className="text-xs font-semibold mb-1 text-muted-foreground">Your Tags:</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {bookmark.tags.map((tag) => (
+                          <Badge key={tag._id} variant="default" className="text-xs bg-sky-500 hover:bg-sky-600">
+                            {tag.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* AI Suggested Tags */}
+                  {bookmark.bookmarkContent?.aiSuggestedTags && bookmark.bookmarkContent.aiSuggestedTags.length > 0 && (
+                    <div className="mb-3">
+                       <h4 className="text-xs font-semibold mb-1 text-muted-foreground">Suggested:</h4>
+                       <div className="flex flex-wrap gap-1">
+                        {bookmark.bookmarkContent.aiSuggestedTags.slice(0, 3).map((tag, index) => (
+                          <Badge key={`ai-${index}-${tag}`} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {bookmark.bookmarkContent.aiSuggestedTags.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{bookmark.bookmarkContent.aiSuggestedTags.length - 3}
+                            </Badge>
+                          )}
+                      </div>
+                    </div>
+                  )}
+
                   <Separator className="mb-3" />
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center">
@@ -482,9 +604,9 @@ export default function BookmarkDashboard() {
               <Bookmark className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No bookmarks found</h3>
               <p className="text-muted-foreground mb-4">
-                {searchQuery || selectedTag !== "all"
-                  ? "Try adjusting your search or filters"
-                  : "Start by adding your first bookmark"}
+                {searchQuery || selectedTagIdStore || selectedFolderIdStore
+                  ? "Try adjusting your search or filters."
+                  : "Start by adding your first bookmark!"}
               </p>
               <Button onClick={() => bookmarkActions.setIsAddDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -494,6 +616,112 @@ export default function BookmarkDashboard() {
           )}
         </div>
       </div>
+
+      {/* Edit Tags Dialog */}
+      {editTagsDialog.isOpen && editTagsDialog.bookmark && (
+        <Dialog
+          open={editTagsDialog.isOpen}
+          onOpenChange={(isOpen) =>
+            setEditTagsDialog({ ...editTagsDialog, isOpen })
+          }
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Tags for: {editTagsDialog.bookmark.title}</DialogTitle>
+              <DialogDescription>
+                Manage tags for this bookmark. Click a tag to remove it, or type to add a new one.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2 mb-3">
+                {editTagsDialog.bookmark.tags.map((tag) => (
+                  <Badge
+                    key={tag._id}
+                    variant="default"
+                    className="text-sm pr-1 cursor-pointer bg-sky-500 hover:bg-sky-600"
+                    onClick={async () => {
+                      try {
+                        await removeTagFromBookmarkMutation({
+                          bookmarkId: editTagsDialog.bookmark!._id,
+                          tagId: tag._id,
+                        });
+                        // Optimistically update UI or rely on Convex refetch
+                        setEditTagsDialog(prev => ({
+                            ...prev,
+                            bookmark: prev.bookmark ? {
+                                ...prev.bookmark,
+                                tags: prev.bookmark.tags.filter(t => t._id !== tag._id)
+                            } : null
+                        }));
+                      } catch (error) {
+                        console.error("Failed to remove tag:", error);
+                      }
+                    }}
+                  >
+                    {tag.name}
+                    <XCircle className="h-3 w-3 ml-1.5 opacity-70 hover:opacity-100" />
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  id="newTagName"
+                  placeholder="Add new tag..."
+                  value={editTagsDialog.newTagName}
+                  onChange={(e) =>
+                    setEditTagsDialog({
+                      ...editTagsDialog,
+                      newTagName: e.target.value,
+                    })
+                  }
+                  onKeyPress={async (e) => {
+                    if (e.key === "Enter" && editTagsDialog.newTagName.trim() && editTagsDialog.bookmark) {
+                      try {
+                        await addTagToBookmarkMutation({
+                          bookmarkId: editTagsDialog.bookmark._id,
+                          tagName: editTagsDialog.newTagName.trim(),
+                        });
+                        // Optimistically add or rely on refetch. For now, clear input.
+                        // A full solution would update editTagsDialog.bookmark.tags
+                        setEditTagsDialog(prev => ({ ...prev, newTagName: ""}));
+                      } catch (error) {
+                        console.error("Failed to add tag:", error);
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  disabled={!editTagsDialog.newTagName.trim() || addTagToBookmarkMutation.isPending}
+                  onClick={async () => {
+                    if (editTagsDialog.newTagName.trim() && editTagsDialog.bookmark) {
+                       try {
+                        await addTagToBookmarkMutation({
+                          bookmarkId: editTagsDialog.bookmark._id,
+                          tagName: editTagsDialog.newTagName.trim(),
+                        });
+                        setEditTagsDialog(prev => ({ ...prev, newTagName: ""}));
+                      } catch (error) {
+                        console.error("Failed to add tag:", error);
+                      }
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setEditTagsDialog({ isOpen: false, bookmark: null, newTagName: "" })}
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
