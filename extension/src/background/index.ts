@@ -24,6 +24,25 @@ async function getToken() {
   return await clerk.session?.getToken()
 }
 
+// Function to send toast messages to content script
+async function sendToastMessage(
+  tabId: number,
+  message: string,
+  toastType: "success" | "error",
+  duration?: number
+) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SHOW_TOAST",
+      message,
+      toastType,
+      duration
+    })
+  } catch (error) {
+    console.error("Failed to send toast message:", error)
+  }
+}
+
 // Create a listener to listen for messages from content scripts
 // It must return true, in order to keep the connection open and send a response later.
 // NOTE: A runtime listener cannot be async.
@@ -63,7 +82,13 @@ async function saveBookmarkToRecallStack(
   const token = await getToken()
   if (!token) {
     console.error("User not authenticated. Cannot save bookmark.")
-    // TODO: Notify the user they need to log in.
+    if (tabInfo.id) {
+      await sendToastMessage(
+        tabInfo.id,
+        "Please sign in to save bookmarks",
+        "error"
+      )
+    }
     return
   }
 
@@ -86,6 +111,13 @@ async function saveBookmarkToRecallStack(
 
   if (!bookmarkUrl) {
     console.error("Could not determine URL for bookmark.")
+    if (tabInfo.id) {
+      await sendToastMessage(
+        tabInfo.id,
+        "Could not determine URL for bookmark",
+        "error"
+      )
+    }
     return
   }
 
@@ -117,16 +149,34 @@ async function saveBookmarkToRecallStack(
         response.status,
         errorData
       )
-      // TODO: Notify the user about the error.
+      if (tabInfo.id) {
+        await sendToastMessage(
+          tabInfo.id,
+          `Failed to save bookmark: ${errorData.message || "Unknown error"}`,
+          "error"
+        )
+      }
       return
     }
 
     const result = await response.json()
     console.log("Bookmark saved successfully via API:", result)
-    // TODO: Notify the user of success.
+    if (tabInfo.id) {
+      await sendToastMessage(
+        tabInfo.id,
+        "Bookmark saved successfully!",
+        "success"
+      )
+    }
   } catch (error) {
     console.error("Failed to send bookmark to API:", error)
-    // TODO: Notify the user about the network error.
+    if (tabInfo.id) {
+      await sendToastMessage(
+        tabInfo.id,
+        `Network error: ${error instanceof Error ? error.message : "Failed to save bookmark"}`,
+        "error"
+      )
+    }
   }
 }
 

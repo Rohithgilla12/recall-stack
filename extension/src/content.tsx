@@ -1,6 +1,8 @@
 import cssText from "data-text:~style.css"
 import type { PlasmoCSConfig } from "plasmo"
+import React, { useEffect } from "react"
 
+import { ToastManager, useToasts } from "~components/ToastManager"
 import { CountButton } from "~features/count-button"
 
 export const config: PlasmoCSConfig = {
@@ -38,10 +40,34 @@ export const getStyle = (): HTMLStyleElement => {
 }
 
 const PlasmoOverlay = () => {
+  const { toasts, removeToast, showSuccess, showError } = useToasts()
+
+  useEffect(() => {
+    // Listen for toast messages from background script
+    const handleMessage = (message: any, sender: any, sendResponse: any) => {
+      if (message.type === "SHOW_TOAST") {
+        if (message.toastType === "success") {
+          showSuccess(message.message, message.duration)
+        } else if (message.toastType === "error") {
+          showError(message.message, message.duration)
+        }
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleMessage)
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage)
+    }
+  }, [showSuccess, showError])
+
   return (
-    <div className="plasmo-z-50 plasmo-flex plasmo-fixed plasmo-top-32 plasmo-right-8">
-      <CountButton />
-    </div>
+    <>
+      <div className="plasmo-z-50 plasmo-flex plasmo-fixed plasmo-top-32 plasmo-right-8">
+        {/* <CountButton /> */}
+      </div>
+      <ToastManager toasts={toasts} onRemoveToast={removeToast} />
+    </>
   )
 }
 
