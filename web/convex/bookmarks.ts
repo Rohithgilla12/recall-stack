@@ -1,6 +1,6 @@
 import { workflow } from "convex"
 import { v } from "convex/values"
-import { internal } from "./_generated/api"
+import { internal } from "./_generated/api" // Added api
 import type { Id } from "./_generated/dataModel"
 import {
 	internalMutation,
@@ -10,63 +10,136 @@ import {
 } from "./_generated/server"
 
 export const getBookmarks = query({
-	args: {},
-	handler: async (ctx, _) => {
+	args: {
+		folderId: v.optional(v.union(v.id("folders"), v.literal("root"), v.null())),
+		tagId: v.optional(v.id("tags")),
+	},
+	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
 
 		if (!identity) {
-			throw new Error("Unauthorized")
+			// Return empty array if not logged in, or throw error, depending on desired public behavior
+			return []
 		}
-
-		const userId = identity.subject
 
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", userId))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 
 		if (!user) {
 			throw new Error("User not found")
 		}
 
-		const bookmarks = await ctx.db
+		let bookmarksQuery = ctx.db
 			.query("bookmarks")
-			.withIndex("by_userId", (q) => q.eq("userId", user._id))
-			.collect()
+			.withIndex("by_userId_and_folderId", (q) => q.eq("userId", user._id))
 
-		const bookmarkContent = await Promise.all(
-			bookmarks.map(async (bookmark) => {
-				if (!bookmark.bookmarkContentId) {
-					return {
-						...bookmark,
-						bookmarkContent: null,
-					}
+		if (args.folderId === "root") {
+			bookmarksQuery = ctx.db
+				.query("bookmarks")
+				.withIndex("by_userId_and_folderId", (q) =>
+					q.eq("userId", user._id).eq("folderId", undefined),
+				) // folderId is undefined for root
+		} else if (args.folderId) {
+			bookmarksQuery = ctx.db
+				.query("bookmarks")
+				.withIndex("by_userId_and_folderId", (q) =>
+					q
+						.eq("userId", user._id)
+						.eq("folderId", args.folderId as Id<"folders">),
+				)
+		} else {
+			// No folderId filter or folderId is null/undefined, fetch all user's bookmarks across all folders
+			// This might require a different index if we strictly use by_userId_and_folderId or iterate if not too many.
+			// For now, let's use the existing by_userId index for "all bookmarks" scenario.
+			// This part might need optimization based on expected data size and query patterns.
+			// A simpler approach for "all" is to just use the by_userId index.
+			bookmarksQuery = ctx.db
+				.query("bookmarks")
+				.withIndex("by_userId", (q) => q.eq("userId", user._id))
+		}
+
+		let filteredBookmarks = await bookmarksQuery.order("desc").collect()
+
+		// If tagId is provided, further filter bookmarks by this tag
+		if (args.tagId) {
+			const bookmarkIdsWithTag = await ctx.db
+				.query("bookmarkTags")
+				.withIndex("by_tagId", (q) => q.eq("tagId", args.tagId as Id<"tags">))
+				.filter((q) => q.eq(q.field("userId"), user._id)) // Ensure tag link belongs to user
+				.collect()
+				.then(
+					(links) => new Set(links.map((link) => link.bookmarkId.toString())),
+				)
+
+			filteredBookmarks = filteredBookmarks.filter((bookmark) =>
+				bookmarkIdsWithTag.has(bookmark._id.toString()),
+			)
+		}
+
+		const bookmarksWithDetails = await Promise.all(
+			filteredBookmarks.map(async (bookmark) => {
+				let contentDoc = null
+				if (bookmark.bookmarkContentId) {
+					contentDoc = await ctx.db.get(bookmark.bookmarkContentId)
 				}
-				const contentDoc = await ctx.db // Renamed to avoid confusion
-					.query("bookmarkContent")
-					// biome-ignore lint/style/noNonNullAssertion: Already checked if bookmarkContentId is not null
-					.withIndex("by_id", (q) => q.eq("_id", bookmark.bookmarkContentId!))
-					.unique()
+
+				// Fetch tags for each bookmark
+				const bookmarkTagEntries = await ctx.db
+					.query("bookmarkTags")
+					.withIndex("by_bookmarkId", (q) => q.eq("bookmarkId", bookmark._id))
+					.collect()
+
+				const tagIdsFromLinks = bookmarkTagEntries.map((bt) => bt.tagId)
+				const tags = await Promise.all(
+					tagIdsFromLinks.map(async (tagId) => {
+						const tagDoc = await ctx.db.get(tagId)
+						// Ensure the tag belongs to the user, though link check above should suffice
+						return tagDoc && tagDoc.userId === user._id
+							? { _id: tagDoc._id, name: tagDoc.name }
+							: null
+					}),
+				)
+				const validTags = tags.filter((tag) => tag !== null) as {
+					_id: Id<"tags">
+					name: string
+				}[]
 
 				return {
-					...bookmark, // Includes original bookmark fields (like its own summary if any)
+					...bookmark,
 					bookmarkContent: contentDoc,
-					// Prioritize AI-generated summary from bookmarkContent if it exists
-					summary: bookmark.summary,
+					summary: contentDoc?.summary || bookmark.summary,
+					tags: validTags,
 				}
 			}),
 		)
-		// The variable name bookmarkContent is a bit misleading here, it's bookmarksWithContent
-		return bookmarkContent
+		return bookmarksWithDetails
 	},
 })
 
 export const getUserFolders = query({
-	args: { userId: v.id("users") },
-	handler: async (ctx, args) => {
+	handler: async (ctx) => {
+		const identity = await ctx.auth.getUserIdentity()
+		if (!identity) {
+			return []
+		}
+		const user = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
+			.unique()
+
+		if (!user) {
+			throw new Error("User not found")
+		}
+
 		return await ctx.db
 			.query("folders")
-			.withIndex("by_userId_and_parentId", (q) => q.eq("userId", args.userId))
+			.withIndex("by_userId_and_parentId", (q) => q.eq("userId", user._id)) // Query by actual user._id
 			.collect()
 	},
 })
@@ -74,12 +147,28 @@ export const getUserFolders = query({
 export const createFolder = mutation({
 	args: {
 		name: v.string(),
-		parentId: v.optional(v.id("folders")),
-		userId: v.id("users"),
+		// parentId: v.optional(v.id("folders")),
 	},
 	handler: async (ctx, args) => {
+		const identity = await ctx.auth.getUserIdentity()
+		if (!identity) {
+			throw new Error("Unauthorized")
+		}
+		const user = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
+			.unique()
+
+		if (!user) {
+			throw new Error("User not found")
+		}
+
 		return await ctx.db.insert("folders", {
-			...args,
+			userId: user._id,
+			name: args.name,
+			// parentId: args.parentId,
 			createdAt: Date.now(),
 		})
 	},
@@ -95,6 +184,7 @@ export const createBookmark = mutation({
 		isArchived: v.optional(v.boolean()),
 		archivedUrl: v.optional(v.string()),
 		userId: v.optional(v.string()),
+		tags: v.optional(v.array(v.string())),
 	},
 	handler: async (ctx, args) => {
 		let userId: Id<"users"> | null = null
@@ -130,17 +220,65 @@ export const createBookmark = mutation({
 			userId = user._id
 		}
 
-		const response = await ctx.db.insert("bookmarks", {
-			...args,
-			userId,
+		const { tags, ...bookmarkData } = args
+
+		const bookmarkId = await ctx.db.insert("bookmarks", {
+			title: bookmarkData.title,
+			url: bookmarkData.url,
+			userId: userId,
+			folderId: bookmarkData.folderId,
+			description: bookmarkData.description,
+			imageUrl: bookmarkData.imageUrl,
 			createdAt: Date.now(),
 		})
 
+		// Process tags
+		if (tags && tags.length > 0) {
+			for (const tagName of tags) {
+				if (tagName.trim() === "") continue // Skip empty tags
+
+				// Check if tag exists for this user
+				const tag = await ctx.db
+					.query("tags")
+					.withIndex("by_userId_and_name", (q) =>
+						q.eq("userId", userId).eq("name", tagName.trim()),
+					)
+					.unique()
+
+				let tagIdToLink: Id<"tags">
+				if (!tag) {
+					// Create tag if it doesn't exist
+					tagIdToLink = await ctx.db.insert("tags", {
+						userId: userId,
+						name: tagName.trim(),
+					})
+				} else {
+					tagIdToLink = tag._id
+				}
+
+				// Link bookmark with tag, avoid duplicates
+				const existingLink = await ctx.db
+					.query("bookmarkTags")
+					.withIndex("by_bookmarkId_and_tagId", (q) =>
+						q.eq("bookmarkId", bookmarkId).eq("tagId", tagIdToLink),
+					)
+					.unique()
+
+				if (!existingLink) {
+					await ctx.db.insert("bookmarkTags", {
+						bookmarkId: bookmarkId,
+						tagId: tagIdToLink,
+						userId: userId,
+					})
+				}
+			}
+		}
+
 		await workflow.start(ctx, internal.bookmark_workflow.bookmarkContentFlow, {
-			bookmarkId: response,
+			bookmarkId: bookmarkId,
 		})
 
-		return response
+		return bookmarkId
 	},
 })
 

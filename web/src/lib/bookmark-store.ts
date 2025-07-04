@@ -1,155 +1,58 @@
-import { Derived, Store } from "@tanstack/store"
-import { getBookmarks, getUserFolders } from "convex/bookmarks"
+import { Store } from "@tanstack/store"
+// Convex queries will be imported and used directly in components.
 
-// Mock data - replace with your Convex queries
-const mockBookmarks = [
-	{
-		id: "1",
-		title: "React Server Components Guide",
-		description:
-			"A comprehensive guide to understanding and implementing React Server Components in modern applications.",
-		url: "https://react.dev/blog/2023/03/22/react-labs-what-we-have-been-working-on-march-2023",
-		imageUrl: "/placeholder.svg?height=200&width=400",
-		tags: ["React", "Server Components", "Frontend"],
-		createdAt: Date.now() - 86400000,
-		summary:
-			"Detailed explanation of RSC architecture and implementation patterns.",
-		isArchived: false,
-	},
-	{
-		id: "2",
-		title: "Advanced TypeScript Patterns",
-		description:
-			"Learn advanced TypeScript patterns for building scalable applications with better type safety.",
-		url: "https://typescript.org/docs",
-		imageUrl: "/placeholder.svg?height=200&width=400",
-		tags: ["TypeScript", "Programming", "Patterns"],
-		createdAt: Date.now() - 172800000,
-		summary: "Covers utility types, conditional types, and advanced generics.",
-		isArchived: false,
-	},
-	{
-		id: "3",
-		title: "Database Design Best Practices",
-		description:
-			"Essential principles for designing efficient and scalable database schemas.",
-		url: "https://example.com/database-design",
-		imageUrl: "/placeholder.svg?height=200&width=400",
-		tags: ["Database", "Design", "Backend"],
-		createdAt: Date.now() - 259200000,
-		summary:
-			"Normalization, indexing strategies, and performance optimization.",
-		isArchived: true,
-	},
-]
-
-const mockTags = [
-	"React",
-	"TypeScript",
-	"Database",
-	"Frontend",
-	"Backend",
-	"Design",
-	"Programming",
-	"Patterns",
-	"Server Components",
-]
-
-const mockFolders = ["Work", "Personal", "Learning", "Projects"]
-
-interface NewBookmark {
+// Types for form data handled by the store
+interface NewBookmarkForm {
 	url: string
 	title: string
 	description: string
-	tags: string[]
-	folder: string
+	tags: string[] // For capturing tags during creation
+	folderId: string | null // To store the ID of the selected folder
 }
 
-interface NewFolder {
+interface NewFolderForm {
 	name: string
 	parentId: string | null
 }
 
-interface BookmarkState {
+// Define the shape of the store's state
+interface BookmarkStoreState {
 	searchQuery: string
-	selectedTag: string
-	selectedFolder: string | null
+	selectedTag: string | null // Can be a tag ID or name, or null for 'all'
+	selectedFolder: string | null // Folder ID, or null for root/all folders
 	isAddDialogOpen: boolean
 	isFolderDialogOpen: boolean
-	newBookmark: NewBookmark
-	newFolder: NewFolder
-	bookmarks: typeof mockBookmarks
-	tags: string[]
-	folders: string[]
+	newBookmarkForm: NewBookmarkForm
+	newFolderForm: NewFolderForm
 }
 
-export const bookmarkStore = new Store<BookmarkState>({
+export const bookmarkStore = new Store<BookmarkStoreState>({
 	searchQuery: "",
-	selectedTag: "all",
-	selectedFolder: null,
+	selectedTag: null, // Default to no tag selected
+	selectedFolder: null, // Default to no folder selected (root)
 	isAddDialogOpen: false,
 	isFolderDialogOpen: false,
-	newBookmark: {
+	newBookmarkForm: {
 		url: "",
 		title: "",
 		description: "",
 		tags: [],
-		folder: "",
+		folderId: null,
 	},
-	newFolder: {
+	newFolderForm: {
 		name: "",
 		parentId: null,
 	},
-	bookmarks: mockBookmarks,
-	tags: mockTags,
-	folders: mockFolders,
 })
 
-// Derived state for filtered bookmarks
-export const filteredBookmarks = new Derived({
-	fn: () => {
-		const state = bookmarkStore.state
-		return state.bookmarks.filter((bookmark) => {
-			const matchesSearch =
-				bookmark.title
-					.toLowerCase()
-					.includes(state.searchQuery.toLowerCase()) ||
-				bookmark.description
-					.toLowerCase()
-					.includes(state.searchQuery.toLowerCase())
-			const matchesTag =
-				state.selectedTag === "all" || bookmark.tags.includes(state.selectedTag)
-			return matchesSearch && matchesTag
-		})
-	},
-	deps: [bookmarkStore],
-})
-
-// Derived state for bookmark stats
-export const bookmarkStats = new Derived({
-	fn: () => {
-		const bookmarks = bookmarkStore.state.bookmarks
-		return {
-			total: bookmarks.length,
-			active: bookmarks.filter((b) => !b.isArchived).length,
-			archived: bookmarks.filter((b) => b.isArchived).length,
-			totalTags: bookmarkStore.state.tags.length,
-		}
-	},
-	deps: [bookmarkStore],
-})
-
-// Mount derived stores
-filteredBookmarks.mount()
-bookmarkStats.mount()
-
-// Helper functions to update store
+// Helper functions to update store state
 export const bookmarkActions = {
 	setSearchQuery: (query: string) => {
 		bookmarkStore.setState((state) => ({ ...state, searchQuery: query }))
 	},
 
-	setSelectedTag: (tag: string) => {
+	// selectedTag could be the tag's ID or a special value like "all"
+	setSelectedTag: (tag: string | null) => {
 		bookmarkStore.setState((state) => ({ ...state, selectedTag: tag }))
 	},
 
@@ -168,56 +71,62 @@ export const bookmarkActions = {
 		}))
 	},
 
-	updateNewBookmark: (updates: Partial<NewBookmark>) => {
+	updateNewBookmarkForm: (updates: Partial<NewBookmarkForm>) => {
 		bookmarkStore.setState((state) => ({
 			...state,
-			newBookmark: { ...state.newBookmark, ...updates },
+			newBookmarkForm: { ...state.newBookmarkForm, ...updates },
 		}))
 	},
 
-	updateNewFolder: (updates: Partial<NewFolder>) => {
+	updateNewFolderForm: (updates: Partial<NewFolderForm>) => {
 		bookmarkStore.setState((state) => ({
 			...state,
-			newFolder: { ...state.newFolder, ...updates },
+			newFolderForm: { ...state.newFolderForm, ...updates },
 		}))
 	},
 
-	resetNewBookmark: () => {
+	resetNewBookmarkForm: () => {
 		bookmarkStore.setState((state) => ({
 			...state,
-			newBookmark: {
+			newBookmarkForm: {
 				url: "",
 				title: "",
 				description: "",
 				tags: [],
-				folder: "",
+				folderId: null, // Reset folderId to null
 			},
 		}))
 	},
 
-	resetNewFolder: () => {
+	resetNewFolderForm: () => {
 		bookmarkStore.setState((state) => ({
 			...state,
-			newFolder: {
+			newFolderForm: {
 				name: "",
-				parentId: null,
+				parentId: null, // Reset parentId to null
 			},
 		}))
 	},
 
-	addBookmark: () => {
-		const state = bookmarkStore.state
-		console.log("Adding bookmark:", state.newBookmark)
-		// Here you would call your Convex mutation
+	// Actions for adding bookmark and creating folder now primarily manage UI state.
+	// The actual mutation calls will be handled by the components using useMutation from react-query.
+	submitAddBookmarkForm: () => {
+		// Logic for handling form submission (e.g., validation) can be added here if needed
+		// For now, it just closes the dialog and resets the form.
+		// The component will take `newBookmarkForm` state and call the Convex mutation.
+		console.log("Bookmark form data:", bookmarkStore.state.newBookmarkForm)
 		bookmarkActions.setIsAddDialogOpen(false)
-		bookmarkActions.resetNewBookmark()
+		bookmarkActions.resetNewBookmarkForm()
 	},
 
-	createFolder: () => {
-		const state = bookmarkStore.state
-		console.log("Creating folder:", state.newFolder)
-		// Here you would call your Convex mutation
+	submitCreateFolderForm: () => {
+		// Similar to submitAddBookmarkForm, component handles mutation.
+		console.log("Folder form data:", bookmarkStore.state.newFolderForm)
 		bookmarkActions.setIsFolderDialogOpen(false)
-		bookmarkActions.resetNewFolder()
+		bookmarkActions.resetNewFolderForm()
 	},
 }
+
+// Derived states like filteredBookmarks and bookmarkStats are removed.
+// This logic will now reside in components, using data fetched via Convex queries
+// and applying filters/derivations based on bookmarkStore.state (searchQuery, selectedTag, selectedFolder).
