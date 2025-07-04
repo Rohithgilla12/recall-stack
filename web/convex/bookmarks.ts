@@ -1,6 +1,7 @@
 import { workflow } from "convex"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
+import type { Id } from "./_generated/dataModel"
 import {
 	internalMutation,
 	internalQuery,
@@ -51,7 +52,7 @@ export const getBookmarks = query({
 					...bookmark, // Includes original bookmark fields (like its own summary if any)
 					bookmarkContent: contentDoc,
 					// Prioritize AI-generated summary from bookmarkContent if it exists
-					summary: contentDoc?.summary || bookmark.summary,
+					summary: bookmark.summary,
 				}
 			}),
 		)
@@ -93,28 +94,45 @@ export const createBookmark = mutation({
 		imageUrl: v.optional(v.string()),
 		isArchived: v.optional(v.boolean()),
 		archivedUrl: v.optional(v.string()),
+		userId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity()
+		let userId: Id<"users"> | null = null
 
-		if (!identity) {
-			throw new Error("Unauthorized")
-		}
+		if (args.userId) {
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", args.userId))
+				.unique()
 
-		const user = await ctx.db
-			.query("users")
-			.withIndex("by_clerk_user_id", (q) =>
-				q.eq("clerkUserId", identity.subject),
-			)
-			.unique()
+			if (!user) {
+				throw new Error("User not found")
+			}
+			userId = user._id
+		} else {
+			const identity = await ctx.auth.getUserIdentity()
 
-		if (!user) {
-			throw new Error("User not found")
+			if (!identity) {
+				throw new Error("Unauthorized")
+			}
+
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_user_id", (q) =>
+					q.eq("clerkUserId", identity.subject),
+				)
+				.unique()
+
+			if (!user) {
+				throw new Error("User not found")
+			}
+
+			userId = user._id
 		}
 
 		const response = await ctx.db.insert("bookmarks", {
 			...args,
-			userId: user._id,
+			userId,
 			createdAt: Date.now(),
 		})
 
@@ -192,8 +210,8 @@ export const createBookmarkContent = internalMutation({
 			url,
 			markdown,
 			cleanedContent,
-			summary,
 			aiSuggestedTags,
+			summary,
 			ogData,
 		} = // Added summary to destructuring
 			args
@@ -203,9 +221,14 @@ export const createBookmarkContent = internalMutation({
 			url,
 			markdown,
 			cleanedContent,
-			summary,
 			aiSuggestedTags,
-			ogData,
+			summary,
+			ogData: {
+				title: ogData?.title || "",
+				description: ogData?.description || "",
+				image: ogData?.image || "",
+				url: ogData?.url || "",
+			},
 			createdAt: Date.now(),
 		})
 

@@ -43,14 +43,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(function () {
   chrome.contextMenus.create({
     title: "Save to Recall Stack", // Updated title
-    contexts: ["page", "selection", "link", "image"], // More specific contexts
+    contexts: ["all"], // More specific contexts
     id: "save-to-recall-stack"
   })
 })
 
 // Refactored function to handle bookmark saving
-async function saveBookmarkToRecallStack(tabInfo: chrome.tabs.Tab, additionalInfo?: chrome.contextMenus.OnClickData) {
-  console.log("Attempting to save bookmark for tab:", tabInfo, "Additional info:", additionalInfo)
+async function saveBookmarkToRecallStack(
+  tabInfo: chrome.tabs.Tab,
+  additionalInfo?: chrome.contextMenus.OnClickData
+) {
+  console.log(
+    "Attempting to save bookmark for tab:",
+    tabInfo,
+    "Additional info:",
+    additionalInfo
+  )
 
   const token = await getToken()
   if (!token) {
@@ -63,6 +71,10 @@ async function saveBookmarkToRecallStack(tabInfo: chrome.tabs.Tab, additionalInf
   let bookmarkTitle = tabInfo.title || "Untitled Bookmark"
   let description = additionalInfo?.selectionText
 
+  console.log("Bookmark URL:", bookmarkUrl)
+  console.log("Bookmark title:", bookmarkTitle)
+  console.log("Description:", description)
+
   // If triggered by context menu on a link, use link URL and potentially link text
   if (additionalInfo?.linkUrl) {
     // Heuristic: If there's selected text, it might be more relevant than the tab title for a link.
@@ -74,14 +86,16 @@ async function saveBookmarkToRecallStack(tabInfo: chrome.tabs.Tab, additionalInf
 
   if (!bookmarkUrl) {
     console.error("Could not determine URL for bookmark.")
-    return;
+    return
   }
 
-  console.log(`Preparing to save: Title: "${bookmarkTitle}", URL: "${bookmarkUrl}", Description: "${description}"`)
+  console.log(
+    `Preparing to save: Title: "${bookmarkTitle}", URL: "${bookmarkUrl}", Description: "${description}"`
+  )
 
   try {
     // TODO: Make this URL configurable (e.g., via environment variable for the extension)
-    const apiUrl = "http://localhost:4321/api/bookmarks"
+    const apiUrl = "http://localhost:3000/api/bookmarks"
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -91,14 +105,18 @@ async function saveBookmarkToRecallStack(tabInfo: chrome.tabs.Tab, additionalInf
       body: JSON.stringify({
         url: bookmarkUrl,
         title: bookmarkTitle,
-        description: description, // Pass selectionText as description
+        description: description // Pass selectionText as description
         // imageUrl: additionalInfo?.srcUrl, // If saving an image context
       })
     })
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error("Error saving bookmark via API:", response.status, errorData)
+      console.error(
+        "Error saving bookmark via API:",
+        response.status,
+        errorData
+      )
       // TODO: Notify the user about the error.
       return
     }
@@ -113,12 +131,15 @@ async function saveBookmarkToRecallStack(tabInfo: chrome.tabs.Tab, additionalInf
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log("Context menu clicked:", info, tab)
   if (info.menuItemId === "save-to-recall-stack" && tab) {
     saveBookmarkToRecallStack(tab, info)
   }
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
+  console.log("Command received:", command)
+  console.log("Tab:", tab)
   if (command === "save-to-recall-stack" && tab) {
     // Note: 'tab' here might be the currently active tab when the command is issued.
     // If the command should always operate on the active tab, this is fine.
