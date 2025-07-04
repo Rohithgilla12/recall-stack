@@ -1,4 +1,16 @@
-// Content script for tag input
+import React from "react";
+import * as ReactDOMClient from "react-dom/client";
+import TagInputUI from "~components/TagInputUI"; // Using ~ alias for src
+
+// Attempt to import Tailwind CSS. This path might need adjustment based on Plasmo's build output.
+// If style.css is in src/ and includes Tailwind.
+// For this to work, Plasmo needs to correctly process `data-text:` imports in regular TS files,
+// or this CSS needs to be made available another way (e.g. web_accessible_resources and fetch).
+// As a fallback, Tailwind classes in TagInputUI.tsx will work if the page itself uses Tailwind,
+// but Shadow DOM encapsulation is better.
+// Assuming `src/style.css` is the main CSS file with Tailwind.
+import tailwindStyleText from "data-text:../../style.css";
+
 
 interface PageDetails {
   url?: string;
@@ -6,162 +18,80 @@ interface PageDetails {
   selectionText?: string;
 }
 
-let pageDetails: PageDetails = {};
-let timerId: number | null = null;
-const TAG_INPUT_CONTAINER_ID = "recall-stack-tag-input-container";
+const CONTAINER_ID = "recall-stack-tag-input-react-container";
+let root: ReactDOMClient.Root | null = null;
+let shadowHost: HTMLDivElement | null = null;
 
-function removeTagInputUI() {
-  const existingUI = document.getElementById(TAG_INPUT_CONTAINER_ID);
-  if (existingUI) {
-    existingUI.remove();
+function unmountUI() {
+  if (root) {
+    root.unmount();
+    root = null;
   }
-  if (timerId) {
-    clearTimeout(timerId);
-    timerId = null;
+  if (shadowHost) {
+    shadowHost.remove();
+    shadowHost = null;
+  }
+  // Remove the main container if it exists (though shadowHost.remove() should handle it)
+  const existingContainer = document.getElementById(CONTAINER_ID);
+  if (existingContainer) {
+    existingContainer.remove();
   }
 }
 
-function submitTags() {
-  removeTagInputUI(); // Clean up UI first
+function mountUI(pageDetails: PageDetails) {
+  // Remove any existing UI first
+  unmountUI();
 
-  const tagInput = document.getElementById("recall-stack-tag-input-field") as HTMLInputElement | null;
-  const tags = tagInput ? tagInput.value.split(",").map(tag => tag.trim()).filter(tag => tag) : [];
+  shadowHost = document.createElement("div");
+  shadowHost.id = CONTAINER_ID; // The outer host for the shadow DOM
+  document.body.appendChild(shadowHost);
 
-  chrome.runtime.sendMessage({
-    type: "saveBookmarkWithTags",
-    url: pageDetails.url,
-    title: pageDetails.title,
-    description: pageDetails.selectionText,
-    tags: tags
-  }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.error("Error sending message to background:", chrome.runtime.lastError.message);
-    } else {
-      // console.log("Message sent to background, response:", response);
-    }
-  });
-}
+  const shadow = shadowHost.attachShadow({ mode: "open" });
 
-function createTagInputUI() {
-  // Remove any existing UI first to prevent duplicates
-  removeTagInputUI();
+  // Inject Tailwind styles into Shadow DOM
+  const styleElement = document.createElement("style");
+  styleElement.textContent = tailwindStyleText; // Use imported Tailwind CSS
+  shadow.appendChild(styleElement);
 
-  const container = document.createElement("div");
-  container.id = TAG_INPUT_CONTAINER_ID;
-  // Basic styling - this should be improved with CSS classes
-  container.style.position = "fixed";
-  container.style.top = "20px";
-  container.style.right = "20px";
-  container.style.backgroundColor = "white";
-  container.style.padding = "20px";
-  container.style.border = "1px solid #ccc";
-  container.style.zIndex = "2147483647"; // Max z-index
-  container.style.boxShadow = "0px 0px 10px rgba(0,0,0,0.2)";
-  container.style.fontFamily = "Arial, sans-serif";
-  container.style.fontSize = "14px";
-  container.style.color = "#333";
+  const reactMountPoint = document.createElement("div");
+  reactMountPoint.id = "recall-stack-react-mount-point"; // Actual mount point for React app
+  shadow.appendChild(reactMountPoint);
 
-
-  const titleElement = document.createElement("h3");
-  titleElement.textContent = "Add Tags (optional)";
-  titleElement.style.margin = "0 0 10px 0";
-  titleElement.style.fontSize = "16px";
-
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.id = "recall-stack-tag-input-field";
-  input.placeholder = "Enter tags, comma-separated";
-  input.style.width = "calc(100% - 22px)"; // Account for padding/border
-  input.style.padding = "10px";
-  input.style.marginBottom = "10px";
-  input.style.border = "1px solid #ddd";
-  input.style.borderRadius = "4px";
-
-  const saveButton = document.createElement("button");
-  saveButton.textContent = "Save Bookmark";
-  saveButton.style.backgroundColor = "#007bff";
-  saveButton.style.color = "white";
-  saveButton.style.border = "none";
-  saveButton.style.padding = "10px 15px";
-  saveButton.style.borderRadius = "4px";
-  saveButton.style.cursor = "pointer";
-  saveButton.onclick = () => {
-    if (timerId) clearTimeout(timerId); // Clear timer if manually submitted
-    submitTags();
-  };
-
-  const timerText = document.createElement("p");
-  timerText.style.fontSize = "12px";
-  timerText.style.marginTop = "10px";
-  timerText.style.color = "#666";
-  let countdown = 5;
-  timerText.textContent = `Auto-saving in ${countdown}s...`;
-
-
-  container.appendChild(titleElement);
-  container.appendChild(input);
-  container.appendChild(saveButton);
-  container.appendChild(timerText);
-  document.body.appendChild(container);
-
-  input.focus();
-
-  // Start 5-second timer
-  timerId = window.setTimeout(() => {
-    // Check if UI still exists (user might have closed tab or navigated away)
-    if (document.getElementById(TAG_INPUT_CONTAINER_ID)) {
-      submitTags();
-    }
-  }, 5000);
-
-  // Countdown timer update
-  const intervalId = setInterval(() => {
-    countdown--;
-    if (countdown > 0) {
-      timerText.textContent = `Auto-saving in ${countdown}s...`;
-    } else {
-      // timerText.textContent = `Auto-saving...`; // Or remove/hide
-      clearInterval(intervalId); // Stop this interval once timer is up
-    }
-  }, 1000);
-
-  // Ensure interval is cleared when UI is removed
-  const observer = new MutationObserver((mutationsList, observerInstance) => {
-      for(let mutation of mutationsList) {
-          if (mutation.type === 'childList') {
-              let removedNodes = Array.from(mutation.removedNodes);
-              if (removedNodes.includes(container)) {
-                  clearInterval(intervalId);
-                  observerInstance.disconnect();
-                  return;
-              }
-          }
-      }
-  });
-  observer.observe(document.body, { childList: true });
+  root = ReactDOMClient.createRoot(reactMountPoint);
+  root.render(
+    React.createElement(TagInputUI, {
+      initialPageDetails: pageDetails,
+      onSubmit: (tags, submittedPageDetails) => {
+        chrome.runtime.sendMessage({
+          type: "saveBookmarkWithTags",
+          url: submittedPageDetails.url,
+          title: submittedPageDetails.title,
+          description: submittedPageDetails.selectionText,
+          tags: tags,
+        });
+        // unmountUI(); // TagInputUI calls onClose which triggers this
+      },
+      onClose: () => {
+        unmountUI();
+      },
+    })
+  );
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "initTagInput") {
-    // console.log("Received initTagInput message:", request);
-    pageDetails = {
+    const details: PageDetails = {
       url: request.url,
       title: request.title,
-      selectionText: request.selectionText
+      selectionText: request.selectionText,
     };
-    createTagInputUI();
-    // Content scripts cannot typically send a response to chrome.tabs.sendMessage
-    // If a response is needed, the background script would need to listen for a message from here.
-    // For now, no response is sent back for initTagInput.
-    return false; // No async response
+    mountUI(details);
+    // No response needed
+    return false;
   }
 });
 
-// console.log("Recall Stack: Tag input content script loaded.");
+// Clean up if the script is somehow re-injected or page unloads (best effort)
+// window.addEventListener("beforeunload", unmountUI);
 
-// Optional: Add a listener to remove the UI if the user navigates away
-// This can be tricky due to various navigation types.
-// window.addEventListener('beforeunload', () => {
-//   removeTagInputUI();
-// });
+console.log("Recall Stack: Tag input content script (React version) loaded.");
