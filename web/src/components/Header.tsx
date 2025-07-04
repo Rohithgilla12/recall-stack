@@ -1,63 +1,36 @@
-import { Link } from "@tanstack/react-router"
-
-import { Bookmark } from "lucide-react"
-import ClerkHeader from "../integrations/clerk/header-user.tsx"
+import { Link } from "@tanstack/react-router";
+import { Bookmark } from "lucide-react";
+import ClerkHeader from "../integrations/clerk/header-user.tsx";
+import { useAuth } from "@clerk/clerk-react";
 
 export default function Header() {
-	return (
-		<header className="p-2 flex gap-2 bg-white text-black justify-between">
-			<nav className="flex flex-row">
-				<div className="px-2 font-bold">
-					<Link to="/">
-						<div className="flex items-center space-x-2">
-							<Bookmark className="h-8 w-8 text-blue-600" />
-							<h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-								Recall Stack
-							</h1>
-						</div>
-					</Link>
-				</div>
+  const { isSignedIn } = useAuth();
 
-				<div className="px-2 font-bold">
-					<Link to="/demo/clerk">Clerk</Link>
-				</div>
+  return (
+    <header className="p-4 flex items-center justify-between bg-white dark:bg-slate-800 shadow-md">
+      <Link to="/" className="flex items-center space-x-2">
+        <Bookmark className="h-8 w-8 text-blue-600" />
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          Recall Stack
+        </h1>
+      </Link>
 
-				<div className="px-2 font-bold">
-					<Link to="/demo/convex">Convex</Link>
-				</div>
+      <nav className="flex items-center space-x-4">
+        {isSignedIn && (
+          <Link
+            to="/bookmarks"
+            className="text-sm font-medium text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 px-3 py-2 rounded-md transition-colors"
+            activeProps={{ className: "text-blue-600 dark:text-blue-500 bg-slate-100 dark:bg-slate-700" }}
+          >
+            My Bookmarks
+          </Link>
+        )}
+        {/* Add other essential navigation links here if needed in the future */}
+      </nav>
 
-				<div className="px-2 font-bold">
-					<Link to="/demo/form/simple">Simple Form</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/form/address">Address Form</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/start/server-funcs">Start - Server Functions</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/start/api-request">Start - API Request</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/store">Store</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/table">TanStack Table</Link>
-				</div>
-
-				<div className="px-2 font-bold">
-					<Link to="/demo/tanstack-query">TanStack Query</Link>
-				</div>
-			</nav>
-
-			<div>
-				<ClerkHeader />
-			</div>
-		</header>
-	)
+      <div>
+        <ClerkHeader />
+      </div>
+    </header>
+  );
 }
