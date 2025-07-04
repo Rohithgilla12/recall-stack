@@ -52,9 +52,7 @@ export const APIRoute = createAPIFileRoute("/api/bookmarks")({
 			}
 
 			const convex = new ConvexHttpClient(process.env.VITE_CONVEX_URL)
-			// Note: The `createBookmark` mutation in convex/bookmarks.ts
-			// already handles getting the user identity from the session.
-			// We don't need to explicitly pass the user ID here if the session is correctly propagated.
+			// Pass the userId extracted from the JWT to the mutation
 			const result = await convex.mutation(api.bookmarks.createBookmark, {
 				url,
 				title,
