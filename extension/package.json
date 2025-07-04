@@ -33,13 +33,23 @@
       "cookies",
       "storage",
       "activeTab",
-      "contextMenus"
+      "contextMenus",
+      "commands"
     ],
     "host_permissions": [
       "http://localhost/*",
       "$PLASMO_PUBLIC_CLERK_SYNC_HOST/*",
       "$CLERK_FRONTEND_API/*",
       "https://*/*"
-    ]
+    ],
+    "commands": {
+      "save-to-recall-stack": {
+        "suggested_key": {
+          "default": "Ctrl+Shift+S",
+          "mac": "Command+Shift+S"
+        },
+        "description": "Save current page to Recall Stack"
+      }
+    }
   }
 }

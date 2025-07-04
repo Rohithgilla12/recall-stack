@@ -14,6 +14,7 @@ import type * as bookmarks from "../bookmarks.js";
 import type * as features_ogdata from "../features/ogdata.js";
 import type * as index from "../index.js";
 import type * as products from "../products.js";
+import type * as tags from "../tags.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   "features/ogdata": typeof features_ogdata;
   index: typeof index;
   products: typeof products;
+  tags: typeof tags;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

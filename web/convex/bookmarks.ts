@@ -1,18 +1,18 @@
 import { workflow } from "convex"
 import { v } from "convex/values"
-import { internal, api } from "./_generated/api" // Added api
+import { internal } from "./_generated/api" // Added api
+import type { Id } from "./_generated/dataModel"
 import {
 	internalMutation,
 	internalQuery,
 	mutation,
 	query,
 } from "./_generated/server"
-import { Id } from "./_generated/dataModel" // Added Id
 
 export const getBookmarks = query({
 	args: {
 		folderId: v.optional(v.union(v.id("folders"), v.literal("root"), v.null())),
-		tagId: v.optional(v.id("tags")), // Added tagId for filtering
+		tagId: v.optional(v.id("tags")),
 	},
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
@@ -33,16 +33,24 @@ export const getBookmarks = query({
 			throw new Error("User not found")
 		}
 
-		let bookmarksQuery = ctx.db.query("bookmarks").withIndex("by_userId_and_folderId", q => q.eq("userId", user._id))
+		let bookmarksQuery = ctx.db
+			.query("bookmarks")
+			.withIndex("by_userId_and_folderId", (q) => q.eq("userId", user._id))
 
 		if (args.folderId === "root") {
 			bookmarksQuery = ctx.db
 				.query("bookmarks")
-				.withIndex("by_userId_and_folderId", (q) => q.eq("userId", user._id).eq("folderId", undefined)) // folderId is undefined for root
+				.withIndex("by_userId_and_folderId", (q) =>
+					q.eq("userId", user._id).eq("folderId", undefined),
+				) // folderId is undefined for root
 		} else if (args.folderId) {
 			bookmarksQuery = ctx.db
 				.query("bookmarks")
-				.withIndex("by_userId_and_folderId", (q) => q.eq("userId", user._id).eq("folderId", args.folderId as Id<"folders">))
+				.withIndex("by_userId_and_folderId", (q) =>
+					q
+						.eq("userId", user._id)
+						.eq("folderId", args.folderId as Id<"folders">),
+				)
 		} else {
 			// No folderId filter or folderId is null/undefined, fetch all user's bookmarks across all folders
 			// This might require a different index if we strictly use by_userId_and_folderId or iterate if not too many.
@@ -60,12 +68,16 @@ export const getBookmarks = query({
 		if (args.tagId) {
 			const bookmarkIdsWithTag = await ctx.db
 				.query("bookmarkTags")
-				.withIndex("by_tagId", q => q.eq("tagId", args.tagId as Id<"tags">))
-				.filter(q => q.eq(q.field("userId"), user._id)) // Ensure tag link belongs to user
+				.withIndex("by_tagId", (q) => q.eq("tagId", args.tagId as Id<"tags">))
+				.filter((q) => q.eq(q.field("userId"), user._id)) // Ensure tag link belongs to user
 				.collect()
-				.then(links => new Set(links.map(link => link.bookmarkId.toString())))
+				.then(
+					(links) => new Set(links.map((link) => link.bookmarkId.toString())),
+				)
 
-			filteredBookmarks = filteredBookmarks.filter(bookmark => bookmarkIdsWithTag.has(bookmark._id.toString()))
+			filteredBookmarks = filteredBookmarks.filter((bookmark) =>
+				bookmarkIdsWithTag.has(bookmark._id.toString()),
+			)
 		}
 
 		const bookmarksWithDetails = await Promise.all(
@@ -86,11 +98,15 @@ export const getBookmarks = query({
 					tagIdsFromLinks.map(async (tagId) => {
 						const tagDoc = await ctx.db.get(tagId)
 						// Ensure the tag belongs to the user, though link check above should suffice
-						return tagDoc && tagDoc.userId.equals(user!._id) ? { _id: tagDoc._id, name: tagDoc.name } : null
+						return tagDoc && tagDoc.userId === user._id
+							? { _id: tagDoc._id, name: tagDoc.name }
+							: null
 					}),
 				)
-				const validTags = tags.filter(tag => tag !== null) as { _id: Id<"tags">, name: string }[]
-
+				const validTags = tags.filter((tag) => tag !== null) as {
+					_id: Id<"tags">
+					name: string
+				}[]
 
 				return {
 					...bookmark,
@@ -105,15 +121,16 @@ export const getBookmarks = query({
 })
 
 export const getUserFolders = query({
-	args: { userId: v.id("users") }, // Consider if userId is needed if we rely on auth
-	handler: async (ctx, _args) => { // _args used if userId is from auth
+	handler: async (ctx) => {
 		const identity = await ctx.auth.getUserIdentity()
 		if (!identity) {
 			return []
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 
 		if (!user) {
@@ -140,7 +157,9 @@ export const createFolder = mutation({
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 
 		if (!user) {
@@ -162,35 +181,52 @@ export const createBookmark = mutation({
 		url: v.string(),
 		folderId: v.optional(v.id("folders")),
 		description: v.optional(v.string()),
-		// imageUrl: v.optional(v.string()), // imageUrl might come from ogData
+		imageUrl: v.optional(v.string()),
 		isArchived: v.optional(v.boolean()),
-		// archivedUrl: v.optional(v.string()), // This might be part of a separate archive flow
-		tags: v.optional(v.array(v.string())), // Array of tag names
+		archivedUrl: v.optional(v.string()),
+		userId: v.optional(v.string()),
+		tags: v.optional(v.array(v.string())),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity()
+		let userId: Id<"users"> | null = null
 
-		if (!identity) {
-			throw new Error("Unauthorized")
+		if (args.userId) {
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", args.userId))
+				.unique()
+
+			if (!user) {
+				throw new Error("User not found")
+			}
+			userId = user._id
+		} else {
+			const identity = await ctx.auth.getUserIdentity()
+
+			if (!identity) {
+				throw new Error("Unauthorized")
+			}
+
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_user_id", (q) =>
+					q.eq("clerkUserId", identity.subject),
+				)
+				.unique()
+
+			if (!user) {
+				throw new Error("User not found")
+			}
+
+			userId = user._id
 		}
 
-		const user = await ctx.db
-			.query("users")
-			.withIndex("by_clerk_user_id", (q) =>
-				q.eq("clerkUserId", identity.subject),
-			)
-			.unique()
-
-		if (!user) {
-			throw new Error("User not found")
-		}
-
-		// Destructure to separate tags from other bookmark args
 		const { tags, ...bookmarkData } = args
 
 		const bookmarkId = await ctx.db.insert("bookmarks", {
 			...bookmarkData,
-			userId: user._id,
+			...args,
+			userId,
 			createdAt: Date.now(),
 		})
 
@@ -200,10 +236,10 @@ export const createBookmark = mutation({
 				if (tagName.trim() === "") continue // Skip empty tags
 
 				// Check if tag exists for this user
-				let tag = await ctx.db
+				const tag = await ctx.db
 					.query("tags")
 					.withIndex("by_userId_and_name", (q) =>
-						q.eq("userId", user._id).eq("name", tagName.trim()),
+						q.eq("userId", userId).eq("name", tagName.trim()),
 					)
 					.unique()
 
@@ -211,7 +247,7 @@ export const createBookmark = mutation({
 				if (!tag) {
 					// Create tag if it doesn't exist
 					tagIdToLink = await ctx.db.insert("tags", {
-						userId: user._id,
+						userId: userId,
 						name: tagName.trim(),
 					})
 				} else {
@@ -221,14 +257,16 @@ export const createBookmark = mutation({
 				// Link bookmark with tag, avoid duplicates
 				const existingLink = await ctx.db
 					.query("bookmarkTags")
-					.withIndex("by_bookmarkId_and_tagId", q => q.eq("bookmarkId", bookmarkId).eq("tagId", tagIdToLink))
+					.withIndex("by_bookmarkId_and_tagId", (q) =>
+						q.eq("bookmarkId", bookmarkId).eq("tagId", tagIdToLink),
+					)
 					.unique()
 
 				if (!existingLink) {
 					await ctx.db.insert("bookmarkTags", {
 						bookmarkId: bookmarkId,
 						tagId: tagIdToLink,
-						userId: user._id,
+						userId: userId,
 					})
 				}
 			}
@@ -308,8 +346,8 @@ export const createBookmarkContent = internalMutation({
 			url,
 			markdown,
 			cleanedContent,
-			summary,
 			aiSuggestedTags,
+			summary,
 			ogData,
 		} = // Added summary to destructuring
 			args
@@ -319,9 +357,14 @@ export const createBookmarkContent = internalMutation({
 			url,
 			markdown,
 			cleanedContent,
-			summary,
 			aiSuggestedTags,
-			ogData,
+			summary,
+			ogData: {
+				title: ogData?.title || "",
+				description: ogData?.description || "",
+				image: ogData?.image || "",
+				url: ogData?.url || "",
+			},
 			createdAt: Date.now(),
 		})
 

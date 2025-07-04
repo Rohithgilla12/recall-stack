@@ -1,14 +1,13 @@
 import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { Id } from "./_generated/dataModel"
 
 // Query to get all unique tags for the current user
 export const getAllUserTags = query({
-	args: {},
 	handler: async (ctx) => {
 		const identity = await ctx.auth.getUserIdentity()
 		if (!identity) {
-			return [] // Or throw new Error("Unauthorized")
+			return []
 		}
 
 		const user = await ctx.db
@@ -42,10 +41,16 @@ export const getTagsForBookmark = query({
 		const tags = await Promise.all(
 			tagIds.map(async (tagId) => {
 				const tagDoc = await ctx.db.get(tagId)
-				return tagDoc ? { _id: tagDoc._id, name: tagDoc.name, userId: tagDoc.userId } : null
+				return tagDoc
+					? { _id: tagDoc._id, name: tagDoc.name, userId: tagDoc.userId }
+					: null
 			}),
 		)
-		return tags.filter(tag => tag !== null) as { _id: Id<"tags">, name: string, userId: Id<"users"> }[]
+		return tags.filter((tag) => tag !== null) as {
+			_id: Id<"tags">
+			name: string
+			userId: Id<"users">
+		}[]
 	},
 })
 
@@ -62,7 +67,9 @@ export const addTagToBookmark = mutation({
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 		if (!user) {
 			throw new Error("User not found")
@@ -78,7 +85,7 @@ export const addTagToBookmark = mutation({
 		}
 
 		// Check if tag exists for this user
-		let tag = await ctx.db
+		const tag = await ctx.db
 			.query("tags")
 			.withIndex("by_userId_and_name", (q) =>
 				q.eq("userId", user._id).eq("name", args.tagName.trim()),
@@ -123,6 +130,9 @@ export const removeTagFromBookmark = mutation({
 		bookmarkId: v.id("bookmarks"),
 		tagId: v.id("tags"),
 	},
+	returns: v.object({
+		success: v.boolean(),
+	}),
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
 		if (!identity) {
@@ -130,7 +140,9 @@ export const removeTagFromBookmark = mutation({
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 		if (!user) {
 			throw new Error("User not found")
@@ -146,7 +158,7 @@ export const removeTagFromBookmark = mutation({
 			.withIndex("by_bookmarkId_and_tagId", (q) =>
 				q.eq("bookmarkId", args.bookmarkId).eq("tagId", args.tagId),
 			)
-			.filter(q => q.eq(q.field("userId"), user._id)) // Ensure user owns the link
+			.filter((q) => q.eq(q.field("userId"), user._id)) // Ensure user owns the link
 			.unique()
 
 		if (linkToDelete) {
@@ -162,6 +174,9 @@ export const removeTagFromBookmark = mutation({
 // A safer version might check if the tag is used before deleting.
 export const deleteTag = mutation({
 	args: { tagId: v.id("tags") },
+	returns: v.object({
+		success: v.boolean(),
+	}),
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
 		if (!identity) {
@@ -169,7 +184,9 @@ export const deleteTag = mutation({
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 		if (!user) {
 			throw new Error("User not found")
@@ -202,6 +219,9 @@ export const renameTag = mutation({
 		tagId: v.id("tags"),
 		newName: v.string(),
 	},
+	returns: v.object({
+		success: v.boolean(),
+	}),
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
 		if (!identity) {
@@ -209,7 +229,9 @@ export const renameTag = mutation({
 		}
 		const user = await ctx.db
 			.query("users")
-			.withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
+			.withIndex("by_clerk_user_id", (q) =>
+				q.eq("clerkUserId", identity.subject),
+			)
 			.unique()
 		if (!user) {
 			throw new Error("User not found")

@@ -32,13 +32,13 @@ import {
   bookmarkStore,
 } from "@/lib/bookmark-store";
 import { useAuth } from "@clerk/clerk-react";
-// import { useConvexMutation } from "@convex-dev/react-query"; // Direct use of useMutation from convex/react
-// import { useMutation } from "@tanstack/react-query"; // Direct use of useMutation from convex/react
 import { useStore } from "@tanstack/react-store";
 import { api } from "convex/_generated/api";
-import { useQuery, useMutation } from "convex/react"; // Consolidated imports
-import { Id } from "convex/_generated/dataModel";
+import type { Id } from "convex/_generated/dataModel";
+import { useQuery } from "convex/react"; // Consolidated imports
 
+import { useConvexMutation, useConvexQuery } from "@convex-dev/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   Archive,
   Bookmark,
@@ -47,24 +47,16 @@ import {
   Folder,
   FolderPlus,
   Globe,
-  Home, // For Root folder
+  Home, 
+  Pencil, 
   Plus,
   Search,
   Tag,
+  XCircle,
 } from "lucide-react";
-
-export default function BookmarkDashboard() {
-  const { userId: clerkUserId, isSignedIn } = useAuth(); // clerkUserId for clarity if needed for specific queries
-
-import React from "react"; // Import React
-// ... other imports
-import {
-  Pencil, // For Edit Tags button
-  XCircle, // For removing a tag in dialog
-} from "lucide-react";
+import React from "react";
 
 
-// Define types for bookmark and tag for clarity
 type TagType = { _id: Id<"tags">; name: string };
 type BookmarkType = {
   _id: Id<"bookmarks">;
@@ -83,8 +75,9 @@ type BookmarkType = {
 };
 
 
+
 export default function BookmarkDashboard() {
-  const { userId: clerkUserId, isSignedIn } = useAuth();
+  const { isSignedIn } = useAuth();
 
   // Store subscriptions for UI state
   const searchQuery = useStore(bookmarkStore, (state) => state.searchQuery);
@@ -105,17 +98,58 @@ export default function BookmarkDashboard() {
 
   // Convex queries
   const bookmarks: BookmarkType[] = useQuery(
-    api.bookmarks.getBookmarks,
-    isSignedIn ? { folderId: selectedFolderIdStore ?? "root", tagId: selectedTagIdStore ?? undefined } : { skip: true }
+    api.bookmarks.getBookmarks,{
+      folderId: selectedFolderIdStore as any,
+      tagId: undefined as any,
+    }
+
   ) || [];
-  const userFolders = useQuery(api.bookmarks.getUserFolders, isSignedIn ? {} : { skip: true }) || [];
-  const userTags = useQuery(api.tags.getAllUserTags, isSignedIn ? {} : { skip: true }) || [];
+
+  const userFolders = useConvexQuery(api.bookmarks.getUserFolders, isSignedIn ? {} : "skip") || [];
+  const userTags = useConvexQuery(api.tags.getAllUserTags, isSignedIn ? {} : "skip") || []
 
   // Convex mutations
-  const createBookmarkMutation = useMutation(api.bookmarks.createBookmark);
-  const createFolderMutation = useMutation(api.bookmarks.createFolder);
-  const addTagToBookmarkMutation = useMutation(api.tags.addTagToBookmark);
-  const removeTagFromBookmarkMutation = useMutation(api.tags.removeTagFromBookmark);
+  const {mutate: createBookmarkMutation, isPending: createBookmarkMutationPending}= useMutation({
+    mutationFn: useConvexMutation(api.bookmarks.createBookmark),
+    onSuccess: () => {
+      bookmarkActions.submitAddBookmarkForm();
+    },
+    onError: (error) => {
+      console.error("Failed to create bookmark:", error);
+    },
+  });
+
+  const {mutate: createFolderMutation, isPending: createFolderMutationPending}= useMutation({
+    mutationFn: useConvexMutation(api.bookmarks.createFolder),
+    onSuccess: () => {
+      bookmarkActions.submitCreateFolderForm();
+    },
+    onError: (error) => {
+      console.error("Failed to create folder:", error);
+    },
+  });
+
+  const {mutate: addTagToBookmarkMutation, isPending: addTagToBookmarkMutationPending}= useMutation({
+    mutationFn: useConvexMutation(api.tags.addTagToBookmark),
+    onSuccess: () => {
+      // bookmarkActions.submitAddTagToBookmarkForm();
+    },
+    onError: (error) => {
+      console.error("Failed to add tag to bookmark:", error);
+    },
+  });
+
+  const {mutate: removeTagFromBookmarkMutation}= useMutation({
+    mutationFn: useConvexMutation(api.tags.removeTagFromBookmark),
+    onSuccess: () => {
+      console.log("Tag removed from bookmark");
+      // bookmarkActions.submitRemoveTagFromBookmarkForm();
+    },
+    onError: (error) => {
+      console.error("Failed to remove tag from bookmark:", error);
+    },
+  });
+
 
   if (!isSignedIn) {
     return <div>Sign in to continue</div>;
@@ -282,11 +316,11 @@ export default function BookmarkDashboard() {
                         />
                     </div>
                     <Button
-                      disabled={createBookmarkMutation.isPending}
+                      disabled={createBookmarkMutationPending}
                       onClick={handleCreateBookmark}
                       className="w-full"
                     >
-                      {createBookmarkMutation.isPending ? "Saving..." : "Save Bookmark"}
+                      {createBookmarkMutationPending ? "Saving..." : "Save Bookmark"}
                     </Button>
                   </div>
                 </DialogContent>
@@ -448,11 +482,11 @@ export default function BookmarkDashboard() {
                       </Select>
                     </div>
                     <Button
-                      disabled={createFolderMutation.isPending}
+                      disabled={createFolderMutationPending}
                       onClick={handleCreateFolder}
                       className="w-full"
                     >
-                      {createFolderMutation.isPending ? "Creating..." : "Create Folder"}
+                      {createFolderMutationPending ? "Creating..." : "Create Folder"}
                     </Button>
                   </div>
                 </DialogContent>
@@ -692,7 +726,7 @@ export default function BookmarkDashboard() {
                 />
                 <Button
                   size="sm"
-                  disabled={!editTagsDialog.newTagName.trim() || addTagToBookmarkMutation.isPending}
+                  disabled={!editTagsDialog.newTagName.trim() || addTagToBookmarkMutationPending}
                   onClick={async () => {
                     if (editTagsDialog.newTagName.trim() && editTagsDialog.bookmark) {
                        try {
