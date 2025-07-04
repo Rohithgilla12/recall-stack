@@ -48,54 +48,39 @@ chrome.runtime.onInstalled.addListener(function () {
   })
 })
 
-// Refactored function to handle bookmark saving
-async function saveBookmarkToRecallStack(
-  tabInfo: chrome.tabs.Tab,
-  additionalInfo?: chrome.contextMenus.OnClickData
-) {
-  console.log(
-    "Attempting to save bookmark for tab:",
-    tabInfo,
-    "Additional info:",
-    additionalInfo
-  )
+// Interface for bookmark data, including optional tags
+interface BookmarkData {
+  url: string
+  title: string
+  description?: string
+  tags?: string[]
+  // Include tabId to send toast message to the correct tab
+  tabId?: number
+}
+
+// Function to handle bookmark saving, now accepts BookmarkData
+async function saveBookmarkToRecallStack(data: BookmarkData) {
+  console.log("Attempting to save bookmark with data:", data)
 
   const token = await getToken()
   if (!token) {
     console.error("User not authenticated. Cannot save bookmark.")
     // TODO: Notify the user they need to log in.
+    // Potentially send a message to the content script or open a login page.
     return
   }
 
-  const bookmarkUrl = additionalInfo?.pageUrl || tabInfo.url
-  let bookmarkTitle = tabInfo.title || "Untitled Bookmark"
-  let description = additionalInfo?.selectionText
-
-  console.log("Bookmark URL:", bookmarkUrl)
-  console.log("Bookmark title:", bookmarkTitle)
-  console.log("Description:", description)
-
-  // If triggered by context menu on a link, use link URL and potentially link text
-  if (additionalInfo?.linkUrl) {
-    // Heuristic: If there's selected text, it might be more relevant than the tab title for a link.
-    // Or, often for links, there isn't a good "title" other than the link text itself,
-    // which isn't directly available here unless it was part of selectionText.
-    // For simplicity, we'll prioritize page title, but this could be refined.
-    // bookmarkTitle = additionalInfo.selectionText || tabInfo.title || "Link"; // Example refinement
-  }
-
-  if (!bookmarkUrl) {
+  if (!data.url) {
     console.error("Could not determine URL for bookmark.")
     return
   }
 
   console.log(
-    `Preparing to save: Title: "${bookmarkTitle}", URL: "${bookmarkUrl}", Description: "${description}"`
+    `Preparing to save: Title: "${data.title}", URL: "${data.url}", Description: "${data.description}", Tags: "${data.tags?.join(", ")}"`
   )
 
   try {
-    // TODO: Make this URL configurable (e.g., via environment variable for the extension)
-    const apiUrl = "http://localhost:3000/api/bookmarks"
+    const apiUrl = "http://localhost:3000/api/bookmarks" // TODO: Configurable
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -103,10 +88,10 @@ async function saveBookmarkToRecallStack(
         Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
-        url: bookmarkUrl,
-        title: bookmarkTitle,
-        description: description // Pass selectionText as description
-        // imageUrl: additionalInfo?.srcUrl, // If saving an image context
+        url: data.url,
+        title: data.title,
+        description: data.description,
+        tags: data.tags // Send tags to the API
       })
     })
 
@@ -117,33 +102,158 @@ async function saveBookmarkToRecallStack(
         response.status,
         errorData
       )
-      // TODO: Notify the user about the error.
+      // TODO: Notify the user about the error (e.g., via toast in the content script)
+      if (data.tabId) {
+        chrome.scripting.executeScript({
+          target: { tabId: data.tabId },
+          files: ["content_scripts/toast_content_script.js"] // Ensure this path is correct
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.error("Error injecting toast script for error:", chrome.runtime.lastError.message);
+            return;
+          }
+          chrome.tabs.sendMessage(data.tabId!, {
+            type: "showToast",
+            message: `Error: ${errorData.message || "Failed to save bookmark."}`,
+            level: "error"
+          });
+        });
+      }
       return
     }
 
     const result = await response.json()
     console.log("Bookmark saved successfully via API:", result)
-    // TODO: Notify the user of success.
+
+    // Notify the user of success by injecting the toast content script
+    if (data.tabId) {
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: data.tabId },
+          files: ["content_scripts/toast_content_script.js"] // Adjust path if necessary after creating the file
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error injecting toast script:",
+              chrome.runtime.lastError.message
+            )
+            return
+          }
+          // Send a message to the newly injected script
+          chrome.tabs.sendMessage(data.tabId!, {
+            type: "showToast",
+            message: "Page added to Recall Stack!",
+            level: "success"
+          })
+        }
+      )
+    }
   } catch (error) {
     console.error("Failed to send bookmark to API:", error)
-    // TODO: Notify the user about the network error.
+    // TODO: Notify the user about the network error (e.g., via toast)
+    if (data.tabId) {
+       chrome.scripting.executeScript({
+          target: { tabId: data.tabId },
+          files: ["content_scripts/toast_content_script.js"] // Ensure this path is correct
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.error("Error injecting toast script for network error:", chrome.runtime.lastError.message);
+            return;
+          }
+          chrome.tabs.sendMessage(data.tabId!, {
+            type: "showToast",
+            message: "Network error. Could not save bookmark.",
+            level: "error"
+          });
+        });
+    }
+  }
+}
+
+// New listener for messages from content scripts (e.g., tag input script)
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "getToken") {
+    // Existing token logic
+    getToken()
+      .then((token) => sendResponse({ token }))
+      .catch((error) => {
+        console.error(
+          "[Background service worker] Error getting token:",
+          JSON.stringify(error)
+        )
+        sendResponse({ token: null })
+      })
+    return true // Respond asynchronously
+  } else if (request.type === "saveBookmarkWithTags") {
+    console.log("Received saveBookmarkWithTags message:", request)
+    const bookmarkData: BookmarkData = {
+      url: request.url,
+      title: request.title,
+      description: request.description,
+      tags: request.tags,
+      tabId: sender.tab?.id // Get tabId from the sender
+    }
+    saveBookmarkToRecallStack(bookmarkData)
+    // No need to sendResponse if the content script doesn't expect one for this message
+    return false // Indicate synchronous processing or no response
+  }
+  // Keep 'return true' for other async message handlers if any are added later
+  // For now, if it's not 'getToken' or 'saveBookmarkWithTags', assume no async response needed from this listener.
+  // If other messages were handled by a different listener, this might need adjustment.
+  // The original listener only handled getToken, so this structure should be okay.
+  // If the original listener needs to be preserved exactly, this new one for 'saveBookmarkWithTags'
+  // could be a separate chrome.runtime.onMessage.addListener call, but generally, one is enough.
+  // For simplicity, combining them here. If issues arise, can split.
+  return false; // Default to not keeping the channel open if message not handled here.
+})
+
+
+// Function to inject the tag input content script
+function injectTagInputScript(tab: chrome.tabs.Tab, selectionText?: string) {
+  if (tab.id) {
+    chrome.scripting.executeScript(
+      {
+        target: { tabId: tab.id },
+        files: ["content_scripts/tag_input_content_script.js"] // Adjust path after creating the file
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error injecting tag input script:",
+            chrome.runtime.lastError.message
+          )
+          return
+        }
+        // Send current tab info to the content script after it's injected
+        // This is important because the content script needs this info to send back
+        chrome.tabs.sendMessage(tab.id!, {
+          type: "initTagInput",
+          url: tab.url,
+          title: tab.title,
+          selectionText: selectionText
+        })
+      }
+    )
+  } else {
+    console.error("Tab ID is missing, cannot inject script.")
   }
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   console.log("Context menu clicked:", info, tab)
   if (info.menuItemId === "save-to-recall-stack" && tab) {
-    saveBookmarkToRecallStack(tab, info)
+    // Instead of saving directly, inject the tag input script
+    // Pass selectionText if available from context menu
+    injectTagInputScript(tab, info.selectionText)
   }
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  console.log("Command received:", command)
-  console.log("Tab:", tab)
+  console.log("Command received:", command, "on tab:", tab)
   if (command === "save-to-recall-stack" && tab) {
-    // Note: 'tab' here might be the currently active tab when the command is issued.
-    // If the command should always operate on the active tab, this is fine.
-    // chrome.tabs.query({ active: true, currentWindow: true }) could also be used if 'tab' is not reliably passed.
-    saveBookmarkToRecallStack(tab)
+    // Inject the tag input script. Selection text is not directly available here.
+    // The content script could try to get it if needed, or we rely on context menu for selection.
+    injectTagInputScript(tab)
   }
 })

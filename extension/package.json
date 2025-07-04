@@ -34,7 +34,8 @@
       "storage",
       "activeTab",
       "contextMenus",
-      "commands"
+      "commands",
+      "scripting"
     ],
     "host_permissions": [
       "http://localhost/*",
