@@ -147,8 +147,7 @@ export const getUserFolders = query({
 export const createFolder = mutation({
 	args: {
 		name: v.string(),
-		parentId: v.optional(v.id("folders")),
-		// userId: v.id("users"), // userId will be derived from auth
+		// parentId: v.optional(v.id("folders")),
 	},
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity()
@@ -167,9 +166,9 @@ export const createFolder = mutation({
 		}
 
 		return await ctx.db.insert("folders", {
-			userId: user._id, // Add userId to the folder
+			userId: user._id,
 			name: args.name,
-			parentId: args.parentId,
+			// parentId: args.parentId,
 			createdAt: Date.now(),
 		})
 	},
@@ -224,9 +223,12 @@ export const createBookmark = mutation({
 		const { tags, ...bookmarkData } = args
 
 		const bookmarkId = await ctx.db.insert("bookmarks", {
-			...bookmarkData,
-			...args,
-			userId,
+			title: bookmarkData.title,
+			url: bookmarkData.url,
+			userId: userId,
+			folderId: bookmarkData.folderId,
+			description: bookmarkData.description,
+			imageUrl: bookmarkData.imageUrl,
 			createdAt: Date.now(),
 		})
 

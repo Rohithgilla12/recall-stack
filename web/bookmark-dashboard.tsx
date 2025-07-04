@@ -182,9 +182,9 @@ export default function BookmarkDashboard() {
       return;
     }
     try {
-      await createFolderMutation({
+      createFolderMutation({
         name: newFolderForm.name,
-        parentId: newFolderForm.parentId as Id<"folders"> | undefined,
+        // parentId: newFolderForm.parentId !== "root" ? newFolderForm.parentId as Id<"folders"> : undefined,
       });
       bookmarkActions.submitCreateFolderForm();
     } catch (error) {
@@ -535,7 +535,7 @@ export default function BookmarkDashboard() {
               >
                 <div className="relative overflow-hidden rounded-t-lg">
                   <img
-                    src={bookmark.bookmarkContent?.ogData?.image || "https://placehold.co/600x400"}
+                    src={bookmark.bookmarkContent?.ogData?.image || `https://avatar.vercel.sh/${bookmark._id}.svg?text=${bookmark.title}`}
                     alt={bookmark.title}
                     className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
                   />
