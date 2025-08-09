@@ -36,22 +36,22 @@ export const Toast: React.FC<ToastProps> = ({
   }
 
   const baseClasses =
-    "fixed top-4 right-4 max-w-sm w-full z-[2147483647] transform transition-all duration-300 ease-in-out"
+    "plasmo-max-w-sm plasmo-w-[350px] plasmo-mr-4 plasmo-transform plasmo-transition-all plasmo-duration-300 plasmo-ease-in-out"
   const visibilityClasses = isVisible
-    ? "translate-x-0 opacity-100"
-    : "translate-x-full opacity-0"
+    ? "plasmo-translate-x-0 plasmo-opacity-100"
+    : "plasmo-translate-x-full plasmo-opacity-0"
 
   const typeClasses =
-    type === "success" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+    type === "success" ? "plasmo-bg-green-500 plasmo-text-white" : "plasmo-bg-red-500 plasmo-text-white"
 
   return (
     <div className={`${baseClasses} ${visibilityClasses}`}>
       <div
-        className={`${typeClasses} p-4 rounded-lg shadow-lg flex items-center justify-between`}>
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
+        className={`${typeClasses} plasmo-p-4 plasmo-rounded-lg plasmo-shadow-lg plasmo-flex plasmo-items-center plasmo-justify-between`}>
+        <div className="plasmo-flex plasmo-items-center">
+          <div className="plasmo-flex-shrink-0">
             {type === "success" ? (
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="plasmo-h-5 plasmo-w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -59,7 +59,7 @@ export const Toast: React.FC<ToastProps> = ({
                 />
               </svg>
             ) : (
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="plasmo-h-5 plasmo-w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -68,15 +68,15 @@ export const Toast: React.FC<ToastProps> = ({
               </svg>
             )}
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium">{message}</p>
+          <div className="plasmo-ml-3">
+            <p className="plasmo-text-sm plasmo-font-medium">{message}</p>
           </div>
         </div>
-        <div className="ml-4 flex-shrink-0">
+        <div className="plasmo-ml-4 plasmo-flex-shrink-0">
           <button
-            className="inline-flex text-white hover:text-gray-200 focus:outline-none focus:text-gray-200 transition ease-in-out duration-150"
+            className="plasmo-inline-flex plasmo-text-white hover:plasmo-text-gray-200 focus:plasmo-outline-none focus:plasmo-text-gray-200 plasmo-transition plasmo-ease-in-out plasmo-duration-150"
             onClick={handleClose}>
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="plasmo-h-4 plasmo-w-4" fill="currentColor" viewBox="0 0 20 20">
               <path
                 fillRule="evenodd"
                 d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"

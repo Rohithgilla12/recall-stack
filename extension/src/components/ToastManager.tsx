@@ -19,15 +19,13 @@ export const ToastManager: React.FC<ToastManagerProps> = ({
   onRemoveToast
 }) => {
   return (
-    <div className="toast-container">
+    <div className="plasmo-fixed plasmo-top-0 plasmo-right-0 plasmo-z-[2147483647]">
       {toasts.map((toast, index) => (
         <div
           key={toast.id}
+          className="plasmo-relative"
           style={{
-            position: "fixed",
-            top: `${16 + index * 80}px`, // Stack toasts vertically
-            right: "16px",
-            zIndex: 2147483647
+            marginTop: index === 0 ? "16px" : "12px"
           }}>
           <Toast
             message={toast.message}
