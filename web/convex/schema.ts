@@ -11,6 +11,22 @@ export default defineSchema({
 		.index("by_email", ["email"])
 		.index("by_clerk_user_id", ["clerkUserId"]),
 
+	userSettings: defineTable({
+		userId: v.id("users"),
+		kindleEmail: v.optional(v.string()),
+		digestFrequency: v.optional(
+			v.union(
+				v.literal("manual"),
+				v.literal("daily"),
+				v.literal("weekly"),
+				v.literal("monthly"),
+			),
+		),
+		digestTime: v.optional(v.string()), // HH:MM format for scheduled digests
+		lastDigestSent: v.optional(v.number()), // timestamp
+		isKindleEnabled: v.optional(v.boolean()),
+	}).index("by_userId", ["userId"]),
+
 	bookmarks: defineTable({
 		userId: v.id("users"),
 		url: v.string(),

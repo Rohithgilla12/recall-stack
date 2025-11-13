@@ -31,6 +31,8 @@ import {
   // bookmarkStats, // To be replaced or removed
   bookmarkStore,
 } from "@/lib/bookmark-store";
+import { KindleSettings } from "@/components/KindleSettings";
+import { SendToKindle } from "@/components/SendToKindle";
 import { useAuth } from "@clerk/clerk-react";
 import { useStore } from "@tanstack/react-store";
 import { api } from "convex/_generated/api";
@@ -43,6 +45,7 @@ import {
   Archive,
   Bookmark,
   Calendar,
+  CheckSquare,
   ExternalLink,
   Folder,
   FolderPlus,
@@ -51,6 +54,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Square,
   Tag,
   XCircle,
 } from "lucide-react";
@@ -99,6 +103,10 @@ export default function BookmarkDashboard() {
     (state) => state.newBookmarkForm
   );
   const newFolderForm = useStore(bookmarkStore, (state) => state.newFolderForm);
+  const selectedBookmarkIds = useStore(
+    bookmarkStore,
+    (state) => state.selectedBookmarkIds
+  );
 
   // State for managing the "Edit Tags" dialog
   const [editTagsDialog, setEditTagsDialog] = React.useState<{
@@ -244,16 +252,22 @@ export default function BookmarkDashboard() {
                   className="pl-10 bg-white dark:bg-slate-800"
                 />
               </div>
-              <Dialog
-                open={isAddDialogOpen}
-                onOpenChange={bookmarkActions.setIsAddDialogOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Bookmark
-                  </Button>
-                </DialogTrigger>
+              <div className="flex gap-2 flex-wrap">
+                <KindleSettings />
+                <SendToKindle
+                  selectedBookmarkIds={selectedBookmarkIds as Id<"bookmarks">[]}
+                  onSuccess={() => bookmarkActions.clearBookmarkSelection()}
+                />
+                <Dialog
+                  open={isAddDialogOpen}
+                  onOpenChange={bookmarkActions.setIsAddDialogOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Bookmark
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Add New Bookmark</DialogTitle>
@@ -560,27 +574,41 @@ export default function BookmarkDashboard() {
 
           {/* Bookmarks Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bookmarks.map((bookmark) => (
-              <Card
-                key={bookmark._id}
-                className="group hover:shadow-lg transition-all duration-200 bg-white dark:bg-slate-800 border-0 shadow-sm hover:-translate-y-1"
-              >
-                <div className="relative overflow-hidden rounded-t-lg">
-                  <img
-                    src={
-                      bookmark.bookmarkContent?.ogData?.image ||
-                      `https://avatar.vercel.sh/${bookmark._id}.svg?text=${bookmark.title}`
-                    }
-                    alt={bookmark.title}
-                    className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                  {bookmark.isArchived && (
-                    <Badge className="absolute top-2 right-2 bg-orange-500 hover:bg-orange-600">
-                      <Archive className="h-3 w-3 mr-1" />
-                      Archived
-                    </Badge>
-                  )}
-                </div>
+            {bookmarks.map((bookmark) => {
+              const isSelected = selectedBookmarkIds.includes(bookmark._id);
+              return (
+                <Card
+                  key={bookmark._id}
+                  className="group hover:shadow-lg transition-all duration-200 bg-white dark:bg-slate-800 border-0 shadow-sm hover:-translate-y-1"
+                >
+                  <div className="relative overflow-hidden rounded-t-lg">
+                    {/* Selection Checkbox */}
+                    <button
+                      onClick={() => bookmarkActions.toggleBookmarkSelection(bookmark._id)}
+                      className="absolute top-2 left-2 z-10 p-1.5 bg-white/90 dark:bg-slate-800/90 rounded-md hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                      title={isSelected ? "Deselect bookmark" : "Select for Kindle"}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <Square className="h-5 w-5 text-gray-400" />
+                      )}
+                    </button>
+                    <img
+                      src={
+                        bookmark.bookmarkContent?.ogData?.image ||
+                        `https://avatar.vercel.sh/${bookmark._id}.svg?text=${bookmark.title}`
+                      }
+                      alt={bookmark.title}
+                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    {bookmark.isArchived && (
+                      <Badge className="absolute top-2 right-2 bg-orange-500 hover:bg-orange-600">
+                        <Archive className="h-3 w-3 mr-1" />
+                        Archived
+                      </Badge>
+                    )}
+                  </div>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <a
@@ -694,7 +722,8 @@ export default function BookmarkDashboard() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
 
           {bookmarks.length === 0 && (

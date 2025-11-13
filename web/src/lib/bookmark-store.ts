@@ -24,6 +24,7 @@ interface BookmarkStoreState {
 	isFolderDialogOpen: boolean
 	newBookmarkForm: NewBookmarkForm
 	newFolderForm: NewFolderForm
+	selectedBookmarkIds: string[] // For multi-select (e.g., Send to Kindle)
 }
 
 export const bookmarkStore = new Store<BookmarkStoreState>({
@@ -43,6 +44,7 @@ export const bookmarkStore = new Store<BookmarkStoreState>({
 		name: "",
 		parentId: null,
 	},
+	selectedBookmarkIds: [],
 })
 
 // Helper functions to update store state
@@ -124,6 +126,33 @@ export const bookmarkActions = {
 		console.log("Folder form data:", bookmarkStore.state.newFolderForm)
 		bookmarkActions.setIsFolderDialogOpen(false)
 		bookmarkActions.resetNewFolderForm()
+	},
+
+	// Bookmark selection actions for Send to Kindle
+	toggleBookmarkSelection: (bookmarkId: string) => {
+		bookmarkStore.setState((state) => {
+			const isSelected = state.selectedBookmarkIds.includes(bookmarkId)
+			return {
+				...state,
+				selectedBookmarkIds: isSelected
+					? state.selectedBookmarkIds.filter((id) => id !== bookmarkId)
+					: [...state.selectedBookmarkIds, bookmarkId],
+			}
+		})
+	},
+
+	selectAllBookmarks: (bookmarkIds: string[]) => {
+		bookmarkStore.setState((state) => ({
+			...state,
+			selectedBookmarkIds: bookmarkIds,
+		}))
+	},
+
+	clearBookmarkSelection: () => {
+		bookmarkStore.setState((state) => ({
+			...state,
+			selectedBookmarkIds: [],
+		}))
 	},
 }
 
